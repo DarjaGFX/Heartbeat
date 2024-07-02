@@ -1,10 +1,10 @@
 """
 modulefor repetetive tasks like checking service status and sending results
 """
-import asyncio
 import json
 import logging
 import os
+import time
 
 from dotenv import load_dotenv
 
@@ -51,7 +51,7 @@ async def run_beater(name: str):
                     operator=conf.get("operator")
                 )
                 await helper.update_service_status(sname=name, status={"Active": res})
-        await asyncio.sleep(float(conf.get("period_sec")))
+        time.sleep(float(conf.get("period_sec")))
 
 
 async def update_live_board(cm):
@@ -73,4 +73,4 @@ async def update_live_board(cm):
             await cm.broadcast(charts)
         except Exception as e:
             logger.exception(e)
-        await asyncio.sleep(10)
+        time.sleep(10)

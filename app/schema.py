@@ -2,7 +2,7 @@
 API input schema module
 """
 from typing import Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class OnlineService(BaseModel):
@@ -16,7 +16,7 @@ class OnlineService(BaseModel):
     operator: Literal["==", "!=", "in", "not in"]
     target: Literal["status_code", "content"]
     data: dict | None
-    period_sec: float
+    period_sec: float = Field(ge=10)
 
 
 class SystemdService(BaseModel):
@@ -24,7 +24,7 @@ class SystemdService(BaseModel):
     Systemd Service Object Schema
     """
     service_name: str
-    period_sec: float
+    period_sec: float = Field(ge=10)
 
 
 class JournalReport(BaseModel):
@@ -34,4 +34,4 @@ class JournalReport(BaseModel):
     service_name: str
     desired_response: str
     operator: Literal["in", "not in"]
-    period_sec: float
+    period_sec: float = Field(ge=10)

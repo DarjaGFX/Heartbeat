@@ -6,7 +6,7 @@ import logging
 import threading
 from contextlib import asynccontextmanager
 from typing import List
-
+from starlette.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect, status
 from fastapi.encoders import jsonable_encoder
 
@@ -47,6 +47,12 @@ async def lifespan(fapp: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"]
+)
 
 
 @app.get("/service/{name}")
