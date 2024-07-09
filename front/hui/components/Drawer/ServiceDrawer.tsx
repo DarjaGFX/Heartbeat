@@ -11,7 +11,7 @@ type Props = {
 
 function ServiceDrawer(props: Props) {
     // Drawer
-    const drawerWidth = 260;
+    const drawerWidth = 300;
     
 
 

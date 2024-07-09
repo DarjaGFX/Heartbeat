@@ -242,7 +242,7 @@ export default function Home() {
                 <AddJournalServiceDialog  open={journalDialogOpen} setOpen={setJournalDialogOpen} />
                 <AddOnlineServiceDialog  open={onlineDialogOpen} setOpen={setOnlineDialogOpen} />
             </div>
-            <div className="bg-inherit flex-wrap col-span-7 mt-28 w-auto h-auto overflow-clip">
+            <div className="bg-inherit flex-wrap col-span-7 mt-28 w-auto h-auto">
                 {Object.keys(message).map((serviceName) => (
                 <ServiceChart key={serviceName} serviceName={serviceName} message={message[serviceName]} theme={theme} />
                 ))}
