@@ -161,7 +161,7 @@ const ServiceChart: React.FC<ServiceChartProps> = ({ serviceName, message , them
         }
     }
 
-    const mainStyle = "border-t-2 mt-4 m-2 sm:ml-10 sm:mr-16 lg:mr-60 w-auto h-auto overflow-scroll"
+    const mainStyle = "border-t-2 mt-4 m-2 sm:ml-10 sm:mr-16 lg:mr-60 w-auto h-auto"
   return (
     <div id={serviceName} className={theme.palette.mode == 'dark' ? "hover:shadow-md  hover:shadow-gray-800 " + mainStyle : "hover:shadow-2xl  hover:shadow-gray-300 " + mainStyle} >
         <Typography
