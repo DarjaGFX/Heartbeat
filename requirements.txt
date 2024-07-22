@@ -6,3 +6,6 @@ pytest
 pylint
 uvicorn
 pytest_asyncio
+paramiko
+alembic
+sqlmodel

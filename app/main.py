@@ -6,11 +6,12 @@ import logging
 import threading
 from contextlib import asynccontextmanager
 from typing import List
-from starlette.middleware.cors import CORSMiddleware
+
 from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect, status
 from fastapi.encoders import jsonable_encoder
+from starlette.middleware.cors import CORSMiddleware
 
-from app import schema
+from app.api.api import api_router
 from app.db import helper
 from app.src import callbacks, connection_manager
 
@@ -34,6 +35,7 @@ async def lifespan(fapp: FastAPI):
     """
     # Loading
     try:
+        # Base.metadata.create_all(bind=engine)
         await helper.clear_up()
     except Exception as e:
         logger.exception(e)
@@ -46,13 +48,16 @@ async def lifespan(fapp: FastAPI):
         logger.exception(e)
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, title="HeartBeat")
 
 app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
         allow_methods=["*"]
 )
+
+
+app.include_router(api_router, prefix='/api')
 
 
 @app.get("/service/{name}")
@@ -82,46 +87,46 @@ async def get_services():
     return await helper.get_services()
 
 
-@app.post("/service")
-async def add_service(
-    response: Response,
-    service: schema.JournalReport | schema.OnlineService | schema.SystemdService
-):
-    """
-    Endpoint to add a new service
-    """
-    match type(service):
-        case schema.OnlineService:
-            stype = "OnlineService"
-        case schema.SystemdService:
-            stype = "SystemdServiceStatus"
-        case schema.JournalReport:
-            stype = "Journalctl"
-    service_dict: dict = jsonable_encoder(service)
-    service_dict.update({
-        "type": stype
-    })
-    try:
-        await helper.add_service(service_dict)
-    except Exception as e:
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {
-            "status_code": status.HTTP_400_BAD_REQUEST,
-            "msg": str(e)
-        }
-    # from starlette.concurrency import run_in_threadpool
-    # await run_in_threadpool(task.run_beater, service.service_name)
-    # bgtask.add_task(task.run_beater, service.service_name)
-    # from threading import Thread
-    # t = Thread(target=task.run_beater, args=(service.service_name,))
-    # t.run()
-    _thread = threading.Thread(target=callbacks.beater_callback, args=(service.service_name,))
-    _thread.start()
-    THREADS.append(_thread)
-    return {
-        "status_code": status.HTTP_201_CREATED,
-        "msg": "service added"
-    }
+# @app.post("/service")
+# async def add_service(
+#     response: Response,
+#     service: schema.JournalReport | schema.OnlineService | schema.SystemdService
+# ):
+#     """
+#     Endpoint to add a new service
+#     """
+#     match type(service):
+#         case schema.OnlineService:
+#             stype = "OnlineService"
+#         case schema.SystemdService:
+#             stype = "SystemdServiceStatus"
+#         case schema.JournalReport:
+#             stype = "Journalctl"
+#     service_dict: dict = jsonable_encoder(service)
+#     service_dict.update({
+#         "type": stype
+#     })
+#     try:
+#         await helper.add_service(service_dict)
+#     except Exception as e:
+#         response.status_code = status.HTTP_400_BAD_REQUEST
+#         return {
+#             "status_code": status.HTTP_400_BAD_REQUEST,
+#             "msg": str(e)
+#         }
+#     # from starlette.concurrency import run_in_threadpool
+#     # await run_in_threadpool(task.run_beater, service.service_name)
+#     # bgtask.add_task(task.run_beater, service.service_name)
+#     # from threading import Thread
+#     # t = Thread(target=task.run_beater, args=(service.service_name,))
+#     # t.run()
+#     _thread = threading.Thread(target=callbacks.beater_callback, args=(service.service_name,))
+#     _thread.start()
+#     THREADS.append(_thread)
+#     return {
+#         "status_code": status.HTTP_201_CREATED,
+#         "msg": "service added"
+#     }
 
 
 @app.delete("/service/{service}")
