@@ -46,7 +46,7 @@
         }
     },
     "loggers": { 
-        "": { 
+        "app": { 
             "handlers": ["default", "filehandler", "error_file_handler"],
             "level": "DEBUG",
             "propagate": false

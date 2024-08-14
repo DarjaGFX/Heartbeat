@@ -1,39 +1,38 @@
 """
-CRUD for Systemd Service
+CRUD for Service Config
 """
 import logging
 
 from sqlmodel import Session
 
-from app.models import (SystemdService, SystemdServiceCreate,
-                        SystemdServiceUpdate)
+from app.models import Config, ConfigCreate, ConfigUpdate
 
 logger = logging.getLogger(__name__)
 
 
-async def create_systemd_config(
+async def create_config(
         session: Session,
-        conf: SystemdServiceCreate
-    ) -> SystemdService:
+        conf: ConfigCreate
+    ) -> Config:
     """
-    create systemd config
+    create config
     """
-    db_obj = SystemdService.model_validate(conf)
+    db_obj = Config.model_validate(conf)
     session.add(db_obj)
     session.commit()
     session.refresh(db_obj)
     return db_obj
 
 
-async def update_systemd_config(
+async def update_config(
         session: Session,
         id_config: int,
-        conf: SystemdServiceUpdate
-    ) -> SystemdService | None:
+        conf: ConfigUpdate
+    ) -> Config | None:
     """
-    update systemd config
+    update config
     """
-    db_obj = session.get(SystemdService, id_config)
+    db_obj = session.get(Config, id_config)
     if not db_obj:
         return None
     try:

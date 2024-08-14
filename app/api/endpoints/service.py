@@ -2,45 +2,91 @@
 Service API ENDPOINT
 """
 
+import json
+
 import sqlalchemy.exc
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import (APIRouter, HTTPException, Query, Response, WebSocket,
+                     WebSocketDisconnect, status)
 
 from app import crud
 from app.api.deps import SessionDep
-from app.models import (Service, ServiceBase, ServiceCreate, ServiceUpdate,
-                        SystemdServiceBase, SystemdServiceCreate)
+from app.models import (ConfigBaseJournal, ConfigBaseOnline, ConfigBaseSystemd,
+                        ConfigCreate, Service, ServiceCreate, ServiceTypeEnum,
+                        ServiceUpdate, ServiceWithConfig)
+from app.models.config import (ConfigUpdate, ConfigUpdateJournal,
+                               ConfigUpdateOnline, ConfigUpdateSystemd)
 from app.schema import HTTPError
+from app.src import callbacks, connection_manager
 
 router = APIRouter()
 
 
-# @router.get("/{id_server}",responses={
-#             200: {"model": ServerDetail},
-#             404: {"model": HTTPError},
-#         }
-#     )
-# async def get_server_by_id(
-#         session: SessionDep,
-#         response: Response,
-#         id_server: int,
-#     ):
-#     """
-#     get SSH Server by id
-#     """
-#     s = crud.server.get_server_by_id(session=session, id_server=id_server)
-#     if s:
-#         return ServerDetail.model_validate(s)
-#     response.status_code = status.HTTP_404_NOT_FOUND
-#     return HTTPException(status_code=404)
+@router.get(
+        "/{id_service}",
+        response_model=ServiceWithConfig|HTTPError,
+        response_model_exclude_none=True,
+        # response_model_exclude_unset=True,
+        responses={
+            200: {"model": ServiceWithConfig},
+            404: {"model": HTTPError},
+        }
+    )
+async def get_server_by_id(
+        session: SessionDep,
+        response: Response,
+        id_service: int,
+    ):
+    """
+    get SSH Server by id
+    """
+    s = await crud.service.get_service_by_id(session=session, id_service=id_service)
+    if s:
+        return s
+    response.status_code = status.HTTP_404_NOT_FOUND
+    return HTTPException(status_code=response.status_code, detail="Service Not Found.")
 
 
-@router.get("/",responses={
-            200: {"model": list[Service]},
+@router.get(
+        "/server/{id_server}", 
+        response_model=list[ServiceWithConfig]|HTTPError,
+        response_model_exclude_none=True,
+        responses={
+            200: {"model": list[ServiceWithConfig]},
+            404: {"model": HTTPError},
+        }
+    )
+async def get_all_services_of_a_server(
+        session: SessionDep,
+        response: Response,
+        id_server: int,
+        offset: int = Query(default=0, ge=0),
+        limit: int = Query(default=10, ge=1)
+    ):
+    """
+    get all Services of a server
+    """
+    s = await crud.service.get_all_services_by_server(
+        session=session,
+        id_server=id_server,
+        offset=offset,
+        limit=limit
+    )
+    if s:
+        return s
+    response.status_code = status.HTTP_404_NOT_FOUND
+    return HTTPException(status_code=response.status_code, detail="Server Not Found")
+
+
+@router.get(
+        "/", 
+        response_model=list[ServiceWithConfig],
+        response_model_exclude_none=True,
+        responses={
+            200: {"model": list[ServiceWithConfig]},
         }
     )
 async def get_all_services(
         session: SessionDep,
-        response: Response,
         offset: int = Query(default=0, ge=0),
         limit: int = Query(default=10, ge=1)
     ):
@@ -50,8 +96,7 @@ async def get_all_services(
     s = await crud.service.get_all_services(session=session, offset=offset, limit=limit)
     if s:
         return s
-    response.status_code = status.HTTP_404_NOT_FOUND
-    return HTTPException(status_code=404)
+    return []
 
 
 @router.post("/",responses={
@@ -64,19 +109,41 @@ async def get_all_services(
 async def creata_service(
         session: SessionDep,
         response: Response,
-        service: ServiceBase,
-        config: SystemdServiceBase # | OnlineServiceBase | JournalServiceBase
+        service: ServiceCreate,
+        config: ConfigBaseOnline | ConfigBaseJournal | ConfigBaseSystemd
     ):
     """
     Create Service
     """
     try:
-        confcreate = SystemdServiceCreate.model_validate(config, update={"service_name": service.service_name})
-        conf = await crud.systemd.create_systemd_config(session=session, conf=confcreate)
-        service_data = ServiceCreate.model_validate(service, update={"id_config": conf.id_config})
-        service_db = await crud.service.create_service(session=session, conf=service_data)
+        data = None
+        if isinstance(config, ConfigBaseOnline):
+            stype = ServiceTypeEnum.ONLINE
+            if config.data is not None:
+                data = json.dumps(config.data)
+            else:
+                data = "{}"
+        elif isinstance(config, ConfigBaseJournal):
+            stype = ServiceTypeEnum.JOURNAL
+        else:
+            stype = ServiceTypeEnum.SYSTEMD
+
+        service_data = ServiceCreate.model_validate(service)
+        service_db = await crud.service.create_service(
+            session=session,
+            serv=service_data,
+            service_type=stype
+        )
+        confcreate = ConfigCreate.model_validate(
+            config,
+            update={"id_service": service_db.id_service, "data": data}
+        )
+        resp = service_db.model_copy()
+        await crud.config.create_config(session=session, conf=confcreate)
+        if resp.id_service:
+            callbacks.beater_callback(args=resp.id_service)
         response.status_code = status.HTTP_201_CREATED
-        return service_db
+        return resp
     except sqlalchemy.exc.IntegrityError:
         response.status_code=status.HTTP_406_NOT_ACCEPTABLE
         return HTTPException(
@@ -91,74 +158,125 @@ async def creata_service(
         )
 
 
-# @router.put("/",responses={
-#             200: {"model": ServerDetail},
-#             404: {"model": HTTPError},
-#             406: {"model": HTTPError},
-#         },
-#     )
-# async def update_server(
-#         session: SessionDep,
-#         response: Response,
-#         id_server: int = Form(...),
-#         name: str | None= Form(default=None),
-#         ip: str | None= Form(default=None),
-#         port: int | None= Form(default=None),
-#         username: str | None= Form(default=None),
-#         password: str | None = Form(default=None),
-#         keyfile: UploadFile = File(default=None),
-#     ):
-#     """
-#     Update Existing SSH Server
-#     """
-#     kfn = None
-#     if keyfile:
-#         kfn = keyfile.filename
-#         cont = await keyfile.read()
-#         if kfn:
-#             await savefile(content=cont, filename=kfn, sub_folder=str(id_server))
-#     try:
-#         server_in = ServerUpdate(
-#             name=name,
-#             ip=ip,
-#             port=port,
-#             username=username,
-#             password=password,
-#             keyfilename=kfn
-#         )
-#         db_obj = crud.server.update_server(session=session, id_server=id_server, server=server_in)
-#         if not db_obj:
-#             response.status_code = status.HTTP_404_NOT_FOUND
-#             return HTTPException(
-#                 status_code=response.status_code,
-#                 detail="Server not found"
-#             )
-#         return ServerDetail.model_validate(db_obj)
-#     except ValueError as e:
-#         response.status_code = status.HTTP_406_NOT_ACCEPTABLE
-#         return HTTPException(
-#             status_code=response.status_code,
-#             detail=str(e)
-#         )
+@router.put("/{id_service}", response_model=ServiceWithConfig,
+            responses={
+                200: {"model": ServiceWithConfig},
+                404: {"model": HTTPError},
+                406: {"model": HTTPError},
+            },
+        )
+async def update_service(
+        session: SessionDep,
+        response: Response,
+        id_service: int,
+        service: ServiceUpdate,
+        config: ConfigUpdateSystemd | ConfigUpdateOnline | ConfigUpdateJournal
+    ):
+    """
+    Update Existing SSH Server
+    """
+    try:
+        if isinstance(config, ConfigBaseSystemd):
+            stype = ServiceTypeEnum.SYSTEMD
+        elif isinstance(config, ConfigBaseOnline):
+            stype = ServiceTypeEnum.ONLINE
+        else:
+            stype = ServiceTypeEnum.JOURNAL
+        serv = session.get(Service, id_service)
+        if not serv:
+            response.status_code = status.HTTP_404_NOT_FOUND
+            return HTTPException(
+                status_code=response.status_code,
+                detail="Service Not Found"
+            )
+        if stype != serv.service_type:
+            response.status_code = status.HTTP_406_NOT_ACCEPTABLE
+            return HTTPException(
+                status_code=response.status_code,
+                detail="Service type can not change."
+            )
+        confupdate = ConfigUpdate.model_validate(config)
+        conf_id = serv.config.id_config
+        if conf_id:
+            await crud.config.update_config(session=session, id_config=conf_id, conf=confupdate)
+        else:
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return HTTPException(
+                status_code=response.status_code,
+                detail="Service had no Config!"
+            )
+        db_obj = await crud.service.update_service(
+            session=session,
+            id_service=id_service,
+            service_data=service
+        )
+
+        if not db_obj:
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return HTTPException(
+                status_code=response.status_code,
+                detail="Update Failed!"
+            )
+        return db_obj
+    except ValueError as e:
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return HTTPException(
+            status_code=response.status_code,
+            detail=str(e)
+        )
 
 
-# @router.delete("/{id_server}",responses={
-#             status.HTTP_202_ACCEPTED: {"model": Server},
-#             status.HTTP_400_BAD_REQUEST: {"model": HTTPError},
-#             status.HTTP_406_NOT_ACCEPTABLE: {"model": HTTPError},
-#         },
-#     )
-# async def delete_server_by_id(
-#         session: SessionDep,
-#         response: Response,
-#         id_server: int
-#     ):
-#     """
-#     delete a SSH Server
-#     """
-#     obj = crud.server.delete_server_by_id(session=session, id_server=id_server)
-#     if obj:
-#         response.status_code = status.HTTP_202_ACCEPTED
-#         return {"ok": True}
-#     response.status_code = status.HTTP_404_NOT_FOUND
-#     return HTTPException(status_code=response.status_code, detail="Server not found")
+@router.delete("/{id_service}", responses={
+            status.HTTP_202_ACCEPTED: {"model": dict},
+            status.HTTP_400_BAD_REQUEST: {"model": HTTPError},
+            status.HTTP_406_NOT_ACCEPTABLE: {"model": HTTPError},
+        },
+    )
+async def delete_service_by_id(
+        session: SessionDep,
+        response: Response,
+        id_service: int
+    ):
+    """
+    delete a SSH Server
+    """
+    obj = await crud.service.delete_service_by_id(session=session, id_service=id_service)
+    if obj:
+        response.status_code = status.HTTP_202_ACCEPTED
+        return {"ok": True}
+    response.status_code = status.HTTP_404_NOT_FOUND
+    return HTTPException(status_code=response.status_code, detail="Server not found")
+
+
+@router.websocket("/")
+async def get_all_service_beats(websocket: WebSocket):
+    """
+    stream heartbeat status of all services
+    """
+    ws_manager = connection_manager.ConnectionManager()
+    await ws_manager.connect(websocket=websocket, channel=0)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+
+
+@router.websocket("/{id_service}")
+async def get_service_beats(
+        websocket: WebSocket,
+        session: SessionDep,
+        id_service: int
+    ):
+    """
+    stream heartbeat status of service with given id
+    """
+    ws_manager = connection_manager.ConnectionManager()
+    service = session.get(Service, id_service)
+    if service:
+        await ws_manager.connect(websocket=websocket, channel=id_service)
+        try:
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            ws_manager.disconnect(websocket)

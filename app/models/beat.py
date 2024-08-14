@@ -10,9 +10,14 @@ class BeatCreate(SQLModel):
     """
     Beat Create Schema
     """
-    id_service: int = Field(foreign_key='service.id_service', nullable=False, index=True)
+    id_service: int = Field(
+        foreign_key='service.id_service',
+        nullable=False,
+        index=True,
+        ondelete="CASCADE"
+    )
     Active: bool = Field(nullable=False)
-    latency: float = Field(nullable=True)
+    latency: float | None = Field(nullable=True, default=None)
     timestamp: float = Field(nullable=False)
 
 
@@ -23,3 +28,11 @@ class Beat(BeatCreate, table=True):
     id_beat: int | None = Field(default=None, primary_key=True)
 
     # service: Service = Relationship(back_populates='beats')
+
+class BeatPublic(SQLModel):
+    """
+    Beat response model
+    """
+    Active: bool = Field(nullable=False)
+    latency: float | None = Field(nullable=True, default=None)
+    timestamp: float = Field(nullable=False)

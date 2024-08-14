@@ -2,15 +2,17 @@
 SSH SERVER API ENDPOINT
 """
 
+import asyncio
 import sqlalchemy.exc
 from fastapi import (APIRouter, File, Form, HTTPException, Query, Response,
-                     UploadFile, status)
+                     UploadFile, WebSocket, WebSocketDisconnect, status)
 
 from app import crud
 from app.api.deps import SessionDep, savefile
 from app.models import (Server, ServerCreate, ServerDetail, ServerPublic,
                         ServerUpdate)
 from app.schema import HTTPError
+from app.src import checker, connection_manager
 
 router = APIRouter()
 
@@ -51,8 +53,7 @@ async def get_all_servers(
     s = await crud.server.get_all_servers(session=session, offset=offset, limit=limit)
     if s:
         return [ServerPublic.model_validate(i) for i in s]
-    response.status_code = status.HTTP_404_NOT_FOUND
-    return HTTPException(status_code=404)
+    return []
 
 
 @router.post("/",responses={
@@ -173,8 +174,7 @@ async def update_server(
 
 @router.delete("/{id_server}",responses={
             status.HTTP_202_ACCEPTED: {"model": dict},
-            status.HTTP_400_BAD_REQUEST: {"model": HTTPError},
-            status.HTTP_406_NOT_ACCEPTABLE: {"model": HTTPError},
+            status.HTTP_404_NOT_FOUND: {"model": HTTPError},
         },
     )
 async def delete_server_by_id(
@@ -191,3 +191,23 @@ async def delete_server_by_id(
         return {"ok": True}
     response.status_code = status.HTTP_404_NOT_FOUND
     return HTTPException(status_code=response.status_code, detail="Server not found")
+
+
+@router.websocket("/{id_server}")
+async def get_server_services_beats(
+        websocket: WebSocket,
+        session: SessionDep,
+        id_server: int
+    ):
+    """
+    stream heartbeat status of all services of a server with given id
+    """
+    ws_manager = connection_manager.ConnectionManager()
+    _server = session.get(Server, id_server)
+    if _server:
+        await ws_manager.connect(websocket=websocket, channel=-1*id_server)
+        try:
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            ws_manager.disconnect(websocket)

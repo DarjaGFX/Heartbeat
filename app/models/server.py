@@ -1,9 +1,13 @@
 """
 Server model (based on SQLModel)
 """
+from typing import TYPE_CHECKING
+
 from sqlmodel import Field, Relationship, SQLModel
 
-# from .service import Service
+if TYPE_CHECKING:
+    from .service import Service
+
 
 
 class ServerBase(SQLModel):
@@ -41,7 +45,8 @@ class Server(ServerCreate, table=True):
     """
     id_server: int | None = Field(default=None, primary_key=True)
     keyfilename: str | None = Field(default=None, nullable=True)
-    # services: list[Service] = Relationship(back_populates="server")
+
+    services: list["Service"] = Relationship(back_populates="server", cascade_delete=True)
 
 
 class ServerPublic(SQLModel):

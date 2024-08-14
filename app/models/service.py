@@ -1,14 +1,17 @@
 """
 Service model (based on SQLModel)
 """
+from ast import List
 from enum import Enum
 from sqlmodel import Field, Relationship, SQLModel
+from typing import TYPE_CHECKING, Annotated, Any, Optional
 
-# from .beat import Beat
-# from .server import Server
+if TYPE_CHECKING:
+    from .server import Server
+    from .config import Config
+    from .beat import Beat
+
 # from .service_journal import JournalService
-# from .service_online import OnlineService
-# from .service_systemd import SystemdService
 
 
 class ServiceTypeEnum(str, Enum):
@@ -24,27 +27,23 @@ class ServiceBase(SQLModel):
     """
     ServiceBase Model
     """
-    id_server: int | None = Field(foreign_key='server.id_server', nullable=True)
-    service_name: str = Field(nullable=False, index=True, unique=True)
-    service_type:  ServiceTypeEnum = Field(nullable=False, index=True)
+    id_server: int | None = Field(foreign_key='server.id_server', nullable=True, ondelete="CASCADE")
+    service_name: str | None = Field(nullable=False, index=True, unique=True)
 
 
 class ServiceCreate(ServiceBase):
     """
     Service Create model
     """
-    id_config: int = Field(nullable=False)
+    id_server: int = Field(foreign_key='server.id_server', nullable=True, ondelete="CASCADE")
+    service_name: str = Field(nullable=False, index=True, unique=True)
 
 
 class ServiceUpdate(SQLModel):
     """
     Service Update Model
     """
-    id_server: int | None = Field(foreign_key='server.id_server', nullable=True)
     service_name: str | None = Field(nullable=False, index=True, unique=True)
-    service_type: ServiceTypeEnum | None = Field(nullable=False, index=True)
-    id_config: int | None = Field(nullable=False)
-
 
 
 class Service(ServiceCreate, table=True):
@@ -52,7 +51,35 @@ class Service(ServiceCreate, table=True):
     Service Table Class
     """
     id_service: int | None = Field(default=None, primary_key=True)
+    service_type: ServiceTypeEnum = Field(nullable=False, index=True)
 
-    # config: OnlineService | JournalService | SystemdService = Relationship(back_populates="service")
-    # server: Server = Relationship(back_populates="services")
-    # beats: list[Beat] = Relationship(back_populates="service")
+    server: "Server" = Relationship(back_populates="services")
+    config: "Config" = Relationship(
+        back_populates="service",
+        cascade_delete=True
+    )
+    # beats: list["Beat"] = Relationship(back_populates="beat", cascade_delete=True)
+    beats: list["Beat"] = Relationship(cascade_delete=True) # (back_populates="service")
+
+
+class ServiceWithConfig(ServiceBase):
+    """
+    Service with config class for response
+    """
+    service_type: ServiceTypeEnum = Field(nullable=False, index=True)
+    config: Optional["Config"] = None
+
+
+class ServiceWithBeats(SQLModel):
+    """
+    Service with beats list
+    """
+    service_name: str | None = Field(nullable=False, index=True, unique=True)
+    beats: Optional[list["BeatPublic"]] = []
+
+
+from .config import Config
+from .beat import BeatPublic
+
+ServiceWithConfig.model_rebuild()
+ServiceWithBeats.model_rebuild()

@@ -1,12 +1,13 @@
 """
 A Connection Manager to manage websockets
 """
+import asyncio
 import logging
-import threading
+from typing import Self
 
 from fastapi import WebSocket
 
-from app.src.callbacks import live_board_callback
+from app.src.task import update_live_board
 
 logger = logging.getLogger(__name__)
 
@@ -33,21 +34,26 @@ class ConnectionManager(Singleton):
     @classmethod
     def __init__(cls):
         try:
-            cls.active_connections: list[WebSocket] = []
-            _thread = threading.Thread(target=live_board_callback, args=(cls,))
-            _thread.start()
+            cls.active_connections: dict[int, list[WebSocket]] = {}
+            asyncio.create_task(update_live_board(cls))
+            logger.debug("Connection Manager initialized")
         except Exception as e:
             logger.exception(e)
 
 
     @classmethod
-    async def connect(cls, websocket: WebSocket):
+    async def connect(cls, websocket: WebSocket, channel: int):
         """
         add a websocket to manager
         """
         try:
             await websocket.accept()
-            cls.active_connections.append(websocket)
+            if channel in cls.active_connections:
+                cls.active_connections[channel].append(websocket)
+                logger.debug("new websocket subscribed to channel :%d", channel)
+            else:
+                cls.active_connections.update({channel: [websocket]})
+                logger.debug("channel : %d created and new websocket subscribed.", channel)
         except Exception as e:
             logger.exception(e)
 
@@ -58,7 +64,10 @@ class ConnectionManager(Singleton):
         disconnect a websocket and remove from manager
         """
         try:
-            cls.active_connections.remove(websocket)
+            for ch in cls.active_connections.items():
+                if websocket in cls.active_connections[ch[0]]:
+                    cls.active_connections[ch[0]].remove(websocket)
+                    logger.debug("websocket unsubscribed from channel :%d", ch[0])
         except Exception as e:
             logger.exception(e)
 
@@ -70,17 +79,35 @@ class ConnectionManager(Singleton):
         """
         try:
             await websocket.send_text(message)
+            logger.debug("message: %s , sent to ws", message)
         except Exception as e:
             logger.exception(e)
 
 
     @classmethod
-    async def broadcast(cls, message: dict):
+    async def auto_broadcast(cls, msg: dict):
+        """
+        gives dict which keys are channel ids and values are messages
+        and broadcast each message to its channel.
+        """
+        try:
+            for i in msg.items():
+                await cls.broadcast(message=i[1], channel=i[0])
+        except Exception as e:
+            logger.exception(e)
+
+
+    @classmethod
+    async def broadcast(cls, message: dict, channel: int):
         """
         send a message to all existing websockets
         """
         try:
-            for connection in cls.active_connections:
-                await connection.send_json(message)
+            if channel in cls.active_connections:
+                for connection in cls.active_connections[channel]:
+                    await connection.send_json(message)
+                    logger.debug("message: %s , broadcasted to channel %d", message, channel)
+            else:
+                logger.debug("connection channel %s does not exist...", channel)
         except Exception as e:
             logger.exception(e)

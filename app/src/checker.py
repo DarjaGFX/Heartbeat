@@ -2,95 +2,161 @@
 Check HB of a service in different ways such as:
 http request, systemctl status and journalctl reports
 """
+import json
 import logging
 import subprocess
-from typing import Any, Literal
+from typing import Any, Optional
 
-import requests
+import paramiko
+
+from app.api.deps import get_db
+from app.models import Service
+from app.models.config import MethodEnum
+from app.models.server import Server
 
 logger = logging.getLogger(__name__)
 
 
+async def get_ssh_client(service: Service) -> Optional[paramiko.SSHClient]:
+    """
+    returns ssh client
+    """
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    if service.server.password:
+        ssh.connect(
+            hostname=service.server.ip,
+            username=service.server.username,
+            password=service.server.password
+        )
+        return ssh
+    elif service.server.keyfilename:
+        k = paramiko.RSAKey.from_private_key_file(service.server.keyfilename)
+        # k = paramiko.DSSKey.from_private_key_file(keyfilename)
+        ssh.connect(
+            hostname=service.server.ip,
+            username=service.server.username,
+            pkey=k
+        )
+        return ssh
+    else:
+        raise ValueError("Both `Password` and `keyfile` can not be None")
+
+
+async def curl_response_parser(response: str) -> tuple[str, str, float]:
+    """
+    parse curl response.
+    returns: (status_code, content, response_time)
+    """
+    lines = response.splitlines()
+    content = '\n'.join(lines[:-2])
+    response_time = float(lines[-1].split(' ')[2][:-1])
+    status_code = lines[-2].split(' ')[2]
+    return (status_code, content, response_time)
+
+
 async def online_service(
-        method: Literal["post", "get", "put"],
-        url: str,
-        desired_response: str = "200",
-        operator: Literal["==", "!=", "in", "not in"] = '==',
-        target: Literal["status_code", "content"] = 'status_code',
-        data: Any = None
-        ) -> bool | tuple:
+        service: Service
+        ) -> tuple[bool, float|None]:
     """
     Online Service HB Check
     """
     try:
         logger.debug({
-            "method": method,
-            "url": url,
-            "desired_response": desired_response,
-            "operator": operator,
-            "target": target,
-            "data": data
+            "method": service.config.method,
+            "url": service.config.url,
+            "desired_response": service.config.desired_response,
+            "operator": service.config.operator,
+            "target": service.config.target,
+            "data": service.config.data
         })
-        args = {
-            "url":url
-        }
-        if method != 'Get' and data is not None:
-            args.update({
-                "data":data
-            })
-        r = eval(f"requests.{method}(**args)")
-        condition = f"'{desired_response}' {operator} str(r.{target})"
+
+        ssh = await get_ssh_client(service=service)
+        if not ssh:
+            raise ConnectionError("connection could not be stablished")
+
+        if not service.config.url:
+            raise ValueError("url can not be None for Online Services")
+        if service.config.method == MethodEnum.GET:
+            command = 'curl -s -w "\nStatus Code: %{http_code}\nResponse Time: '\
+                    '%{time_total}s\n" -o /dev/stdout ' + service.config.url
+        elif service.config.method == MethodEnum.POST:
+            data = service.config.data if service.config.data else ' '
+            command = f'curl -s -w "\nStatus Code: %{{http_code}}\nResponse Time: ' \
+                    f'%{{time_total}}s\n" -o /dev/stdout -X "POST" -H "accept: application/json" '\
+                    f"-H 'Content-Type: application/json' -d '{data}' " \
+                    + service.config.url
+
+
+        stdin, stdout, stderr = ssh.exec_command(command)
+        output = stdout.read().decode("utf-8")
+
+        ssh.close()
+        status, content, latency = await curl_response_parser(response=output)
+        operand = status if service.config.target.value == "status_code" else content # type: ignore
+        condition = f"'{
+            service.config.desired_response
+            }' {service.config.operator.value} '{operand}'" # type: ignore
         if eval(condition):
-            return (True, r.elapsed.total_seconds())
-        return False
+            return (True, latency)
+        return (False, None)
     except Exception as e:
         logger.exception(e)
-        return False
+        return (False, None)
 
 
-async def systemd_service_status(service_name: str) -> bool:
+async def systemd_service_status(service: Service) -> bool:
     """
     Systemd service HB Check
     """
     try:
-        logger.debug(service_name)
+        logger.debug({
+            "service_name": service.service_name,
+            "desired_response": service.config.desired_response,
+            "operator": service.config.operator
+        })
         for ch in '~!@#$%^&*()_+|}{<>?":\'\\/.,':
-            if ch in service_name:
-                logger.info("service_name must not contain non-alphanumeric characters")
-                raise ValueError("service_name must not contain non-alphanumeric characters")
-        s = subprocess.run(
-            [
-                'systemctl',
-                'status',
-                service_name
-            ],
-            capture_output=True,
-            text=True
-        ).stdout
-        return 'Active: active' in s
+            if ch in service.service_name:
+                logger.info("service name must not contain non-alphanumeric characters")
+                raise ValueError("service name must not contain non-alphanumeric characters")
+
+        ssh = await get_ssh_client(service=service)
+        if not ssh:
+            raise ConnectionError("connection could not be stablished")
+
+        stdin, stdout, stderr = ssh.exec_command(f"systemctl status {service.service_name}")
+        output = stdout.read().decode("utf-8")
+        ssh.close()
+        return 'Active: active' in output
     except Exception as e:
         logger.exception(e)
         return False
 
 
 async def journalctl(
-        service_name: str,
-        desired_response: str,
-        operator: Literal["in", "not in"]
+        service: Service
         ) -> bool:
     """
     Journalctl reports HB Check
     """
     try:
         logger.debug({
-            "service_name": service_name,
-            "desired_response": desired_response,
-            "operator": operator
+            "service_name": service.service_name,
+            "desired_response": service.config.desired_response,
+            "operator": service.config.operator
         })
-        js = subprocess.Popen(["journalctl", "-u", service_name], stdout=subprocess.PIPE)
-        s = subprocess.check_output(["tail"], stdin=js.stdout).decode(encoding="utf-8").splitlines()
-        condition_str = f'"{desired_response}" {operator} "{''.join(s)}"'
-        # print(condition_str)
+        for ch in '~!@#$%^&*()_+|}{<>?":\'\\/.,':
+            if ch in service.service_name:
+                logger.info("service name must not contain non-alphanumeric characters")
+                raise ValueError("service name must not contain non-alphanumeric characters")
+        ssh = await get_ssh_client(service=service)
+        if not ssh:
+            raise ConnectionError("connection could not be stablished")
+        stdin, stdout, stderr = ssh.exec_command(f"journalctl -u {service.service_name} | tail")
+        output = stdout.read().decode("utf-8")
+        ssh.close()
+        condition_str = f'"{service.config.desired_response}" {service.config.operator} "{output}"'
+        logger.debug(condition_str)
         condition = eval(condition_str)
         return condition
     except Exception as e:

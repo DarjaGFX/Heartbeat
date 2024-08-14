@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 from app.models import Beat, BeatCreate
 
 
-def create_beat(session: Session, beat_create: BeatCreate) -> Beat:
+async def create_beat(session: Session, beat_create: BeatCreate) -> Beat:
     """
     create beat crud
     """

@@ -4,13 +4,13 @@ SQLAlchemy Models
 import sqlmodel
 
 from .beat import Beat, BeatCreate
+from .config import (Config, ConfigBaseJournal, ConfigBaseOnline,
+                     ConfigBaseSystemd, ConfigCreate, ConfigUpdate,
+                     ConfigUpdateJournal, ConfigUpdateOnline,
+                     ConfigUpdateSystemd, ConfigWithService)
 from .server import (Server, ServerCreate, ServerDetail, ServerPublic,
                      ServerUpdate)
-from .service import Service, ServiceBase, ServiceCreate, ServiceUpdate
-from .service_journal import JournalService
-from .service_online import OnlineService
-from .service_systemd import (SystemdService, SystemdServiceBase,
-                              SystemdServiceCreate, SystemdServiceUpdate)
-
+from .service import (Service, ServiceBase, ServiceCreate, ServiceTypeEnum,
+                      ServiceUpdate, ServiceWithBeats, ServiceWithConfig)
 
 from sqlmodel import SQLModel
