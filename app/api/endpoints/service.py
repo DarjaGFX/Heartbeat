@@ -11,9 +11,9 @@ from fastapi import (APIRouter, HTTPException, Query, Response, WebSocket,
 from app import crud
 from app.api.deps import SessionDep
 from app.models import (ConfigBaseJournal, ConfigBaseOnline, ConfigBaseSystemd,
-                        ConfigCreate, Service, ServiceCreate, ServiceTypeEnum,
-                        ServiceUpdate, ServiceWithConfig)
-from app.models.config import (ConfigUpdate, ConfigUpdateJournal,
+                        ConfigCreate, Server, Service, ServiceCreate,
+                        ServiceTypeEnum, ServiceUpdate, ServiceWithConfig)
+from app.models.config import (Config, ConfigUpdate, ConfigUpdateJournal,
                                ConfigUpdateOnline, ConfigUpdateSystemd)
 from app.schema import HTTPError
 from app.src import callbacks, connection_manager
@@ -116,6 +116,9 @@ async def creata_service(
     Create Service
     """
     try:
+        server = session.get(Server, service.id_server)
+        if not server:
+            raise ValueError(f"invalid server id {service.id_server}")
         data = None
         if isinstance(config, ConfigBaseOnline):
             stype = ServiceTypeEnum.ONLINE
@@ -158,7 +161,7 @@ async def creata_service(
         )
 
 
-@router.put("/{id_service}", response_model=ServiceWithConfig,
+@router.put("/{id_service}", response_model=ServiceWithConfig | HTTPError,
             responses={
                 200: {"model": ServiceWithConfig},
                 404: {"model": HTTPError},
@@ -170,18 +173,18 @@ async def update_service(
         response: Response,
         id_service: int,
         service: ServiceUpdate,
-        config: ConfigUpdateSystemd | ConfigUpdateOnline | ConfigUpdateJournal
+        config: ConfigUpdateOnline | ConfigUpdateJournal | ConfigUpdateSystemd
     ):
     """
     Update Existing SSH Server
     """
     try:
-        if isinstance(config, ConfigBaseSystemd):
-            stype = ServiceTypeEnum.SYSTEMD
-        elif isinstance(config, ConfigBaseOnline):
-            stype = ServiceTypeEnum.ONLINE
-        else:
-            stype = ServiceTypeEnum.JOURNAL
+        # if isinstance(config, ConfigBaseSystemd):
+        #     stype = ServiceTypeEnum.SYSTEMD
+        # elif isinstance(config, ConfigBaseOnline):
+        #     stype = ServiceTypeEnum.ONLINE
+        # else:
+        #     stype = ServiceTypeEnum.JOURNAL
         serv = session.get(Service, id_service)
         if not serv:
             response.status_code = status.HTTP_404_NOT_FOUND
@@ -189,12 +192,12 @@ async def update_service(
                 status_code=response.status_code,
                 detail="Service Not Found"
             )
-        if stype != serv.service_type:
-            response.status_code = status.HTTP_406_NOT_ACCEPTABLE
-            return HTTPException(
-                status_code=response.status_code,
-                detail="Service type can not change."
-            )
+        # if stype != serv.service_type:
+        #     response.status_code = status.HTTP_406_NOT_ACCEPTABLE
+        #     return HTTPException(
+        #         status_code=response.status_code,
+        #         detail="Service type can not change."
+        #     )
         confupdate = ConfigUpdate.model_validate(config)
         conf_id = serv.config.id_config
         if conf_id:
@@ -245,7 +248,7 @@ async def delete_service_by_id(
         response.status_code = status.HTTP_202_ACCEPTED
         return {"ok": True}
     response.status_code = status.HTTP_404_NOT_FOUND
-    return HTTPException(status_code=response.status_code, detail="Server not found")
+    return HTTPException(status_code=response.status_code, detail="Service not found")
 
 
 @router.websocket("/")

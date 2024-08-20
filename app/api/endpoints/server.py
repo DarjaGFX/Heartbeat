@@ -2,7 +2,6 @@
 SSH SERVER API ENDPOINT
 """
 
-import asyncio
 import sqlalchemy.exc
 from fastapi import (APIRouter, File, Form, HTTPException, Query, Response,
                      UploadFile, WebSocket, WebSocketDisconnect, status)
@@ -12,7 +11,7 @@ from app.api.deps import SessionDep, savefile
 from app.models import (Server, ServerCreate, ServerDetail, ServerPublic,
                         ServerUpdate)
 from app.schema import HTTPError
-from app.src import checker, connection_manager
+from app.src import connection_manager
 
 router = APIRouter()
 
@@ -121,7 +120,7 @@ async def creata_server(
         return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.put("/",responses={
+@router.put("/{id_server}",responses={
             200: {"model": ServerDetail},
             404: {"model": HTTPError},
             406: {"model": HTTPError},
@@ -130,7 +129,7 @@ async def creata_server(
 async def update_server(
         session: SessionDep,
         response: Response,
-        id_server: int = Form(...),
+        id_server: int,
         name: str | None= Form(default=None),
         ip: str | None= Form(default=None),
         port: int | None= Form(default=None),
@@ -156,7 +155,11 @@ async def update_server(
             password=password,
             keyfilename=kfn
         )
-        db_obj = await crud.server.update_server(session=session, id_server=id_server, server=server_in)
+        db_obj = await crud.server.update_server(
+            session=session,
+            id_server=id_server,
+            server=server_in
+        )
         if not db_obj:
             response.status_code = status.HTTP_404_NOT_FOUND
             return HTTPException(

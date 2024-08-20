@@ -55,7 +55,6 @@ class ConfigBaseSystemd(ConfigBase):
     """
     Systemd base config model
     """
-    pass
 
 
 class ConfigBaseJournal(ConfigBase):

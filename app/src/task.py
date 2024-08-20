@@ -42,6 +42,7 @@ async def run_beater(id_service: int):
                     id_service=id_service,
                     Active=res[0],
                     latency=res[1],
+                    server_status=res[2],
                     timestamp=ts.timestamp()
                     )
                 await crud.beat.create_beat(
@@ -52,7 +53,8 @@ async def run_beater(id_service: int):
                 res = await checker.systemd_service_status(service=service)
                 bc = BeatCreate(
                     id_service=id_service,
-                    Active=res,
+                    Active=res[0],
+                    server_status=res[1],
                     timestamp=ts.timestamp()
                 )
                 await crud.beat.create_beat(
@@ -63,7 +65,8 @@ async def run_beater(id_service: int):
                 res = await checker.journalctl(service=service)
                 bc = BeatCreate(
                     id_service=id_service,
-                    Active=res,
+                    Active=res[0],
+                    server_status=res[1],
                     timestamp=ts.timestamp()
                 )
                 await crud.beat.create_beat(

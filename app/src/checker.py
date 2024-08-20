@@ -2,17 +2,14 @@
 Check HB of a service in different ways such as:
 http request, systemctl status and journalctl reports
 """
-import json
 import logging
-import subprocess
-from typing import Any, Optional
+from typing import Optional
 
 import paramiko
 
 from app.api.deps import get_db
 from app.models import Service
 from app.models.config import MethodEnum
-from app.models.server import Server
 
 logger = logging.getLogger(__name__)
 
@@ -21,26 +18,28 @@ async def get_ssh_client(service: Service) -> Optional[paramiko.SSHClient]:
     """
     returns ssh client
     """
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    if service.server.password:
-        ssh.connect(
-            hostname=service.server.ip,
-            username=service.server.username,
-            password=service.server.password
-        )
-        return ssh
-    elif service.server.keyfilename:
-        k = paramiko.RSAKey.from_private_key_file(service.server.keyfilename)
-        # k = paramiko.DSSKey.from_private_key_file(keyfilename)
-        ssh.connect(
-            hostname=service.server.ip,
-            username=service.server.username,
-            pkey=k
-        )
-        return ssh
-    else:
-        raise ValueError("Both `Password` and `keyfile` can not be None")
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        if service.server.password:
+            ssh.connect(
+                hostname=service.server.ip,
+                username=service.server.username,
+                password=service.server.password
+            )
+            return ssh
+        elif service.server.keyfilename:
+            k = paramiko.RSAKey.from_private_key_file(service.server.keyfilename)
+            ssh.connect(
+                hostname=service.server.ip,
+                username=service.server.username,
+                pkey=k
+            )
+            return ssh
+        else:
+            raise ValueError("Both `Password` and `keyfile` can not be None")
+    except Exception:
+        return None
 
 
 async def curl_response_parser(response: str) -> tuple[str, str, float]:
@@ -57,7 +56,7 @@ async def curl_response_parser(response: str) -> tuple[str, str, float]:
 
 async def online_service(
         service: Service
-        ) -> tuple[bool, float|None]:
+        ) -> tuple[bool, float|None, bool]:
     """
     Online Service HB Check
     """
@@ -98,14 +97,14 @@ async def online_service(
             service.config.desired_response
             }' {service.config.operator.value} '{operand}'" # type: ignore
         if eval(condition):
-            return (True, latency)
-        return (False, None)
+            return (True, latency, True)
+        return (False, None, True)
     except Exception as e:
         logger.exception(e)
-        return (False, None)
+        return (False, None, False)
 
 
-async def systemd_service_status(service: Service) -> bool:
+async def systemd_service_status(service: Service) -> tuple[bool, bool]:
     """
     Systemd service HB Check
     """
@@ -127,15 +126,15 @@ async def systemd_service_status(service: Service) -> bool:
         stdin, stdout, stderr = ssh.exec_command(f"systemctl status {service.service_name}")
         output = stdout.read().decode("utf-8")
         ssh.close()
-        return 'Active: active' in output
+        return 'Active: active' in output, True
     except Exception as e:
         logger.exception(e)
-        return False
+        return False, False
 
 
 async def journalctl(
         service: Service
-        ) -> bool:
+        ) -> tuple[bool, bool]:
     """
     Journalctl reports HB Check
     """
@@ -155,10 +154,11 @@ async def journalctl(
         stdin, stdout, stderr = ssh.exec_command(f"journalctl -u {service.service_name} | tail")
         output = stdout.read().decode("utf-8")
         ssh.close()
-        condition_str = f'"{service.config.desired_response}" {service.config.operator} "{output}"'
-        logger.debug(condition_str)
+        condition_str = f'"{
+            service.config.desired_response
+            }" {service.config.operator.value} """{output}"""'
         condition = eval(condition_str)
-        return condition
+        return condition, True
     except Exception as e:
         logger.exception(e)
-        return False
+        return False, False

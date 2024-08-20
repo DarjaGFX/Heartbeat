@@ -1,9 +1,7 @@
 """
 Beat model (based on SQLModel)
 """
-from sqlmodel import Field, Relationship, SQLModel
-
-# from .service import Service
+from sqlmodel import Field, SQLModel
 
 
 class BeatCreate(SQLModel):
@@ -19,6 +17,7 @@ class BeatCreate(SQLModel):
     Active: bool = Field(nullable=False)
     latency: float | None = Field(nullable=True, default=None)
     timestamp: float = Field(nullable=False)
+    server_status: bool = Field(nullable=False)
 
 
 class Beat(BeatCreate, table=True):
@@ -36,3 +35,4 @@ class BeatPublic(SQLModel):
     Active: bool = Field(nullable=False)
     latency: float | None = Field(nullable=True, default=None)
     timestamp: float = Field(nullable=False)
+    server_status: bool = Field(nullable=False)

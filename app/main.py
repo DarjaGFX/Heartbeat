@@ -4,6 +4,7 @@ Main file of heartbeat service
 import json
 import logging
 from contextlib import asynccontextmanager
+import logging.config
 
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware

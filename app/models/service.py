@@ -1,15 +1,15 @@
 """
 Service model (based on SQLModel)
 """
-from ast import List
 from enum import Enum
+from typing import TYPE_CHECKING, Optional
+
 from sqlmodel import Field, Relationship, SQLModel
-from typing import TYPE_CHECKING, Annotated, Any, Optional
 
 if TYPE_CHECKING:
-    from .server import Server
-    from .config import Config
     from .beat import Beat
+    from .config import Config
+    from .server import Server
 
 # from .service_journal import JournalService
 
@@ -78,8 +78,8 @@ class ServiceWithBeats(SQLModel):
     beats: Optional[list["BeatPublic"]] = []
 
 
-from .config import Config
 from .beat import BeatPublic
+from .config import Config
 
 ServiceWithConfig.model_rebuild()
 ServiceWithBeats.model_rebuild()
