@@ -28,7 +28,7 @@ class ServiceBase(SQLModel):
     ServiceBase Model
     """
     id_server: int | None = Field(foreign_key='server.id_server', nullable=True, ondelete="CASCADE")
-    service_name: str | None = Field(nullable=False, index=True, unique=True)
+    service_name: str | None = Field(nullable=False, index=True)
 
 
 class ServiceCreate(ServiceBase):
@@ -36,14 +36,14 @@ class ServiceCreate(ServiceBase):
     Service Create model
     """
     id_server: int = Field(foreign_key='server.id_server', nullable=True, ondelete="CASCADE")
-    service_name: str = Field(nullable=False, index=True, unique=True)
+    service_name: str = Field(nullable=False, index=True)
 
 
 class ServiceUpdate(SQLModel):
     """
     Service Update Model
     """
-    service_name: str | None = Field(nullable=False, index=True, unique=True)
+    service_name: str | None = Field(nullable=False, index=True)
 
 
 class Service(ServiceCreate, table=True):
@@ -74,7 +74,7 @@ class ServiceWithBeats(SQLModel):
     """
     Service with beats list
     """
-    service_name: str | None = Field(nullable=False, index=True, unique=True)
+    service_name: str | None = Field(nullable=False, index=True)
     beats: Optional[list["BeatPublic"]] = []
 
 
