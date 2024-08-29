@@ -3,43 +3,11 @@ Check HB of a service in different ways such as:
 http request, systemctl status and journalctl reports
 """
 import logging
-from typing import Optional
 
-import paramiko
-
-from app.api.deps import get_db
 from app.models import Service
 from app.models.config import MethodEnum
 
 logger = logging.getLogger(__name__)
-
-
-async def get_ssh_client(service: Service) -> Optional[paramiko.SSHClient]:
-    """
-    returns ssh client
-    """
-    try:
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        if service.server.password:
-            ssh.connect(
-                hostname=service.server.ip,
-                username=service.server.username,
-                password=service.server.password
-            )
-            return ssh
-        elif service.server.keyfilename:
-            k = paramiko.RSAKey.from_private_key_file(service.server.keyfilename)
-            ssh.connect(
-                hostname=service.server.ip,
-                username=service.server.username,
-                pkey=k
-            )
-            return ssh
-        else:
-            raise ValueError("Both `Password` and `keyfile` can not be None")
-    except Exception:
-        return None
 
 
 async def curl_response_parser(response: str) -> tuple[str, str, float]:
@@ -61,6 +29,7 @@ async def online_service(
     Online Service HB Check
     """
     try:
+        from app.src.connection_manager import SSHManager
         logger.debug({
             "method": service.config.method,
             "url": service.config.url,
@@ -69,9 +38,9 @@ async def online_service(
             "target": service.config.target,
             "data": service.config.data
         })
-
-        ssh = await get_ssh_client(service=service)
-        if not ssh:
+        sshm = SSHManager()
+        ssh = await sshm.get_ssh_client(server=service.server, id_server=None)
+        if ssh is None:
             raise ConnectionError("connection could not be stablished")
 
         if not service.config.url:
@@ -90,7 +59,6 @@ async def online_service(
         stdin, stdout, stderr = ssh.exec_command(command)
         output = stdout.read().decode("utf-8")
 
-        ssh.close()
         status, content, latency = await curl_response_parser(response=output)
         operand = status if service.config.target.value == "status_code" else content # type: ignore
         condition = f"'{
@@ -109,6 +77,7 @@ async def systemd_service_status(service: Service) -> tuple[bool, bool]:
     Systemd service HB Check
     """
     try:
+        from app.src.connection_manager import SSHManager
         logger.debug({
             "service_name": service.service_name,
             "desired_response": service.config.desired_response,
@@ -118,14 +87,14 @@ async def systemd_service_status(service: Service) -> tuple[bool, bool]:
             if ch in service.service_name:
                 logger.info("service name must not contain non-alphanumeric characters")
                 raise ValueError("service name must not contain non-alphanumeric characters")
-
-        ssh = await get_ssh_client(service=service)
-        if not ssh:
+        sshm = SSHManager()
+        ssh = await sshm.get_ssh_client(server=service.server, id_server=None)
+        if ssh is None:
             raise ConnectionError("connection could not be stablished")
 
         stdin, stdout, stderr = ssh.exec_command(f"systemctl status {service.service_name}")
         output = stdout.read().decode("utf-8")
-        ssh.close()
+        # ssh.close()
         return 'Active: active' in output, True
     except Exception as e:
         logger.exception(e)
@@ -139,6 +108,7 @@ async def journalctl(
     Journalctl reports HB Check
     """
     try:
+        from app.src.connection_manager import SSHManager
         logger.debug({
             "service_name": service.service_name,
             "desired_response": service.config.desired_response,
@@ -148,12 +118,12 @@ async def journalctl(
             if ch in service.service_name:
                 logger.info("service name must not contain non-alphanumeric characters")
                 raise ValueError("service name must not contain non-alphanumeric characters")
-        ssh = await get_ssh_client(service=service)
-        if not ssh:
+        sshm = SSHManager()
+        ssh = await sshm.get_ssh_client(server=service.server, id_server=None)
+        if ssh is None:
             raise ConnectionError("connection could not be stablished")
         stdin, stdout, stderr = ssh.exec_command(f"journalctl -u {service.service_name} | tail")
         output = stdout.read().decode("utf-8")
-        ssh.close()
         condition_str = f'"{
             service.config.desired_response
             }" {service.config.operator.value} """{output}"""'

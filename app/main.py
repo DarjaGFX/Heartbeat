@@ -3,8 +3,8 @@ Main file of heartbeat service
 """
 import json
 import logging
-from contextlib import asynccontextmanager
 import logging.config
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
@@ -27,7 +27,7 @@ async def lifespan(_):
     FastAPI app lifespan
     """
     # STARTING UP
-    with get_db().send(None) as session:
+    with next(get_db()) as session:
         services = await crud.service.get_all_services(session=session, offset=0, limit=-1)
         ids = [i.id_service for i in services]
         for i in ids:

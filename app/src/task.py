@@ -12,12 +12,13 @@ from fastapi.encoders import jsonable_encoder
 
 from app import crud
 from app.api.deps import get_db
-from app.models.beat import BeatCreate
-from app.models.service import Service, ServiceTypeEnum, ServiceWithBeats
+from app.models import BeatCreate, Service, ServiceTypeEnum, ServiceWithBeats
 from app.src import checker
 
 if TYPE_CHECKING:
-    from app.src.connection_manager import ConnectionManager
+    from app.src.connection_manager import (ServerConnectionManager,
+                                            ServiceConnectionManager,
+                                            SSHManager)
 
 logger = logging.getLogger(__name__)
 load_dotenv()
@@ -30,7 +31,7 @@ async def run_beater(id_service: int):
     """
     while True:
         ts = datetime.datetime.now(datetime.UTC)
-        session = get_db().send(None)
+        session = next(get_db())
         service = session.get(Service, id_service)
         if not service:
             logger.warning("service with id %d not found!", id_service)
@@ -89,50 +90,74 @@ async def run_beater(id_service: int):
         await asyncio.sleep(sleep)
 
 
-async def update_live_board(cm: "ConnectionManager"):
+async def update_live_board(cm: "ServiceConnectionManager"):
     """
     update status board with latest check results and send to clients using WS connection manager
     """
     while True:
-        session = get_db().send(None)
+        session = next(get_db())
         try:
-            services = await crud.service.get_all_services(session=session)
-            message = {}
-            for s in services:
-                s.beats = s.beats[::-1][:MAX_CHART_BARS]
-                swb = ServiceWithBeats.model_validate(s)
-                swb = jsonable_encoder(swb)
+            if len(cm.active_connections):
+                services = await crud.service.get_all_services(session=session)
+                message = {}
+                for s in services:
+                    s.beats = s.beats[::-1][:MAX_CHART_BARS]
+                    swb = ServiceWithBeats.model_validate(s)
+                    swb = jsonable_encoder(swb)
 
-                # Service Monitor
-                message.update({
-                    s.id_server: swb
-                })
-
-                # Server Monitor
-                if -1 * s.id_server in message:
-                    message[-1 * s.id_server].append(swb)
-                else:
+                    # Service Monitor
                     message.update({
-                        -1 * s.id_server: [swb]
+                        s.id_server: swb
                     })
 
-                # Monitor All Services
-                if 0 in message:
-                    if s.id_server in message[0]:
-                        message[0][s.id_server].append(swb)
+                    # Server Monitor
+                    if -1 * s.id_server in message:
+                        message[-1 * s.id_server].append(swb)
                     else:
-                        message[0].update({
-                            s.id_server: [swb]
-                        })    
-                else:
-                    message.update({
-                        0: {
-                            s.id_server: [swb]
-                        }
-                    })
+                        message.update({
+                            -1 * s.id_server: [swb]
+                        })
 
-            await cm.auto_broadcast(message)
+                    # Monitor All Services
+                    if 0 in message:
+                        if s.id_server in message[0]:
+                            message[0][s.id_server].append(swb)
+                        else:
+                            message[0].update({
+                                s.id_server: [swb]
+                            })    
+                    else:
+                        message.update({
+                            0: {
+                                s.id_server: [swb]
+                            }
+                        })
+
+                await cm.auto_broadcast(message)
         except Exception as e:
             logger.exception(e)
         session.close()
         await asyncio.sleep(10)
+
+
+async def update_server_load_board(cm: "ServerConnectionManager", sshm: "SSHManager"):
+    """
+    update status board with latest check results and send to clients using WS connection manager
+    """
+    while True:
+        try:
+            if len(cm.active_connections):
+                response = {}
+                for s in sshm.active_connections.items():
+                    active = await sshm.is_active(ssh=s[1], retry=3)
+                    status = await sshm.get_server_status(ssh=s[1], retry=3)
+                    response.update({
+                        s[0]: {
+                            "active": active,
+                            "status": status
+                        }
+                    })
+                await cm.broadcast(message=response)
+        except Exception as e:
+            logger.exception(e)
+        await asyncio.sleep(1)

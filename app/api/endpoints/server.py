@@ -8,8 +8,7 @@ from fastapi import (APIRouter, File, Form, HTTPException, Query, Response,
 
 from app import crud
 from app.api.deps import SessionDep, savefile
-from app.models import (Server, ServerCreate, ServerDetail, ServerPublic,
-                        ServerUpdate)
+from app.models import ServerCreate, ServerDetail, ServerPublic, ServerUpdate
 from app.schema import HTTPError
 from app.src import connection_manager
 
@@ -77,7 +76,7 @@ async def creata_server(
     kfn = None
     if keyfile:
         kfn = keyfile.filename
-    elif password is None:
+    elif password == "" or password is None:
         response.status_code = status.HTTP_400_BAD_REQUEST
         return HTTPException(
             status_code=response.status_code,
@@ -107,6 +106,8 @@ async def creata_server(
             content = await keyfile.read()
             sf = str(sf)
             await savefile(content=content, filename=kfn, sub_folder=sf)
+        sshm = connection_manager.SSHManager()
+        await sshm.get_ssh_client(server=in_db_server, id_server=None)
         response.status_code = status.HTTP_201_CREATED
         return ServerDetail.model_validate(in_db_server)
     except sqlalchemy.exc.IntegrityError:
@@ -166,6 +167,8 @@ async def update_server(
                 status_code=response.status_code,
                 detail="Server not found"
             )
+        sshm = connection_manager.SSHManager()
+        await sshm.renew_client(ssh=None, id_server=db_obj.id_server)
         return ServerDetail.model_validate(db_obj)
     except ValueError as e:
         response.status_code = status.HTTP_406_NOT_ACCEPTABLE
@@ -190,27 +193,25 @@ async def delete_server_by_id(
     """
     obj = await crud.server.delete_server_by_id(session=session, id_server=id_server)
     if obj:
+        sshm = connection_manager.SSHManager()
+        await sshm.disconnect(ssh=None, channel=obj.id_server)
         response.status_code = status.HTTP_202_ACCEPTED
         return {"ok": True}
     response.status_code = status.HTTP_404_NOT_FOUND
     return HTTPException(status_code=response.status_code, detail="Server not found")
 
 
-@router.websocket("/{id_server}")
+@router.websocket("/")
 async def get_server_services_beats(
         websocket: WebSocket,
-        session: SessionDep,
-        id_server: int
     ):
     """
-    stream heartbeat status of all services of a server with given id
+    stream status of all servers
     """
-    ws_manager = connection_manager.ConnectionManager()
-    _server = session.get(Server, id_server)
-    if _server:
-        await ws_manager.connect(websocket=websocket, channel=-1*id_server)
-        try:
-            while True:
-                await websocket.receive_text()
-        except WebSocketDisconnect:
-            ws_manager.disconnect(websocket)
+    ws_manager = connection_manager.ServerConnectionManager()
+    await ws_manager.connect(websocket=websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
