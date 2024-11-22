@@ -1,97 +1,134 @@
 import React, { useEffect, useState } from "react";
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, TextField } from "@mui/material";
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle, InputLabel, MenuItem, Select, SelectChangeEvent, TextField } from "@mui/material";
 import toast from "react-hot-toast";
+import { fetchServers } from '@/utils/api/serverApi'; // Import the fetchServers function
+import { addOrUpdateOnlineService } from '@/utils/api/serviceApi'; // Import the API function for adding/updating online services
 
 type Props = {
-    open: any,
-    setOpen: any,
-    data?: any
-}
+    open: boolean;
+    setOpen: (open: boolean) => void;
+    data?: any;
+};
+
+type ServerListRes = {
+    id_server: number;
+    name: string;
+};
 
 function OnlineServiceDialog(props: Props) {
-
+    const [selectedServer, setSelectedServer] = useState<number | ''>('');
+    const [servers, setServers] = useState<ServerListRes[]>([]);
     const [name, setName] = useState("");
-    const [method, setMethod] = useState("get");
+    const [method, setMethod] = useState<"GET" | "POST">("GET");
     const [url, setUrl] = useState("");
     const [desiredResponse, setDesiredResponse] = useState("");
-    const [operator, setOperator] = useState("==");
-    const [target, setTarget] = useState("status_code");
+    const [operator, setOperator] = useState<"==" | "!=" | "in" | "not in">("==");
+    const [target, setTarget] = useState<"content" | "status_code">("status_code");
     const [data, setData] = useState("");
-    const [heartbeatInterval, setHeartbeatInterval] = useState(1800);
+    const [heartbeatInterval, setHeartbeatInterval] = useState<number>(1800);
+    const [offset, setOffset] = useState<number>(0);
+    const [limit, setLimit] = useState<number>(10);
+    const [hasMoreServers, setHasMoreServers] = useState<boolean>(true); // Track if more servers are available
 
     useEffect(() => {
-        if (!props.open) {
+        if (props.open) {
+            loadServers();
+            if (props.data) {
+                // Populate form fields if in update mode
+                setName(props.data.service_name ?? "");
+                setMethod(props.data.method ?? "get");
+                setUrl(props.data.url ?? "");
+                setDesiredResponse(props.data.desired_response ?? "");
+                setOperator(props.data.operator ?? "==");
+                setTarget(props.data.target ?? "status_code");
+                setData(props.data.data ?? "");
+                setHeartbeatInterval(props.data.period_sec ?? 1800);
+                setSelectedServer(props.data.server_id ?? '');
+            }
+        } else {
             // Reset form fields when dialog is closed
             setName("");
-            setMethod("get");
+            setMethod("GET");
             setUrl("");
             setDesiredResponse("");
             setOperator("==");
             setTarget("status_code");
             setData("");
-            setHeartbeatInterval(1800); // Reset to default value
-        } else if (props.data) {
-            // Populate form fields if in update mode
-            setName(props.data.service_name ?? "");
-            setMethod(props.data.method ?? "get");
-            setUrl(props.data.url ?? "");
-            setDesiredResponse(props.data.desired_response ?? "");
-            setOperator(props.data.operator ?? "==");
-            setTarget(props.data.target ?? "status_code");
-            setData(props.data.data ?? "");
-            setHeartbeatInterval(props.data.period_sec ?? 1800);
+            setHeartbeatInterval(1800);
+            setSelectedServer('');
         }
     }, [props.open, props.data]);
 
+    const loadServers = async () => {
+        try {
+            const data = await fetchServers(offset, limit);
+            setServers(prev => [...prev, ...data]);
+            setHasMoreServers(data.length === limit); // Check if more servers are available
+        } catch (error) {
+            toast.error('Failed to load servers');
+        }
+    };
+
+    const handleServerChange = (event: SelectChangeEvent<number | ''>) => {
+        setSelectedServer(event.target.value as number);
+    };
+
     const handleClose = () => {
         props.setOpen(false);
+        setOffset(0);
+        setServers([]);
     };
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        const formData = new FormData(event.currentTarget);
-        const formJson = Object.fromEntries(formData.entries());
+        const toastId = toast.loading(`Saving Online Service Monitor`);
 
-        const toastId = toast.loading(`Adding new Online Service Monitor for ${formJson.name}`);
-
-        const apiUrl = `${process.env.NEXT_PUBLIC_BACKEND_HOST}/service`;
-        const method = props.data ? "PUT" : "POST";
+        const isUpdate = !!props.data;
+        const serviceData = {
+            service: {
+                id_server: selectedServer as number,
+                service_name: name
+            },
+            config: {
+                interval: heartbeatInterval,
+                method: method,
+                url: url,
+                desired_response: desiredResponse,
+                operator: operator,
+                target: target,
+                data: data === "" ? {} : data
+            }
+        };
 
         try {
-            const response = await fetch(apiUrl, {
-                method: method,
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    service_name: formJson.name,
-                    method: formJson.method,
-                    url: formJson.url,
-                    desired_response: formJson.desired_response,
-                    operator: formJson.operator,
-                    target: formJson.target,
-                    data: formJson.data === "" ? {} : formJson.data,
-                    period_sec: formJson.hbi
-                })
-            });
+            const response = await addOrUpdateOnlineService(serviceData, isUpdate);
 
-            if (response.status === 200) {
-                toast.success(`${formJson.name} successfully ${props.data ? 'updated' : 'added'}.`, {
+            if (response.status === 200 || response.status === 201) {
+                toast.success(`${name} successfully ${isUpdate ? 'updated' : 'added'}.`, {
                     id: toastId
                 });
+                handleClose();
             } else {
-                toast.error(`Failed to ${props.data ? 'update' : 'add'} ${formJson.name}.`, {
+                toast.error(`Failed to ${isUpdate ? 'update' : 'add'} ${name}.`, {
                     id: toastId
                 });
             }
         } catch (error) {
-            toast.error(`Error occurred while ${props.data ? 'updating' : 'adding'} ${formJson.name}.`, {
+            const errorMessage = error.response?.data?.detail || 'An error occurred';
+            toast.error(`Error occurred while ${isUpdate ? 'updating' : 'adding'} ${name}: ${errorMessage}`, {
                 id: toastId
             });
         }
+    };
 
-        handleClose();
+    // Optionally handle scrolling to load more servers
+    const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
+        const bottom = event.currentTarget.scrollHeight === event.currentTarget.scrollTop + event.currentTarget.clientHeight;
+        if (bottom && hasMoreServers) {
+            setOffset(prev => prev + limit);
+            loadServers();
+        }
     };
 
     return (
@@ -100,11 +137,29 @@ function OnlineServiceDialog(props: Props) {
             onClose={handleClose}
             PaperProps={{
                 component: 'form',
-                onSubmit: handleSubmit
+                onSubmit: handleSubmit,
+                onScroll: handleScroll // Handle scroll if you want infinite scrolling
             }}
         >
-            <DialogTitle>{props.data ? 'Update Existing Online Service' : 'Monitor New Online Service Heartbeat'}</DialogTitle>
+            <DialogTitle>{props.data ? 'Update Existing Online Service' : 'Monitor New Online Service'}</DialogTitle>
             <DialogContent>
+                <InputLabel id="server-select-label">Server</InputLabel>
+                <Select
+                    labelId="server-select-label"
+                    id="server-select"
+                    value={selectedServer}
+                    onChange={handleServerChange}
+                    label="Server"
+                    fullWidth
+                    variant="standard"
+                    required
+                >
+                    {servers.map(server => (
+                        <MenuItem key={server.id_server} value={server.id_server}>
+                            {server.name}
+                        </MenuItem>
+                    ))}
+                </Select>
                 <TextField
                     autoFocus
                     required
@@ -117,32 +172,24 @@ function OnlineServiceDialog(props: Props) {
                     variant="standard"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    disabled={props.data ? true : false} // Disable if in update mode
+                    disabled={!!props.data}
                 />
                 <TextField
                     id="method"
                     select
                     label="Method"
                     name="method"
-                    defaultValue="get"
                     helperText="Please select request method"
                     value={method}
                     onChange={(e) => setMethod(e.target.value)}
                     fullWidth
                     variant="standard"
                 >
-                    <MenuItem key="get" value="get">
-                        get
-                    </MenuItem>
-                    <MenuItem key="post" value="post">
-                        post
-                    </MenuItem>
-                    <MenuItem key="put" value="put">
-                        put
-                    </MenuItem>
+                    <MenuItem key="GET" value="GET">GET</MenuItem>
+                    <MenuItem key="POST" value="POST">POST</MenuItem>
+                    {/* <MenuItem key="put" value="put">put</MenuItem> */}
                 </TextField>
                 <TextField
-                    autoFocus
                     required
                     margin="dense"
                     id="url"
@@ -155,7 +202,6 @@ function OnlineServiceDialog(props: Props) {
                     onChange={(e) => setUrl(e.target.value)}
                 />
                 <TextField
-                    autoFocus
                     required
                     margin="dense"
                     id="desired_response"
@@ -172,44 +218,30 @@ function OnlineServiceDialog(props: Props) {
                     select
                     label="Operator"
                     name="operator"
-                    defaultValue="=="
                     helperText="Please select match operator"
                     value={operator}
                     onChange={(e) => setOperator(e.target.value)}
                     fullWidth
                     variant="standard"
                 >
-                    <MenuItem key="==" value="==">
-                        ==
-                    </MenuItem>
-                    <MenuItem key="!=" value="!=">
-                        !=
-                    </MenuItem>
-                    <MenuItem key="in" value="in">
-                        in
-                    </MenuItem>
-                    <MenuItem key="not in" value="not in">
-                        not in
-                    </MenuItem>
+                    <MenuItem key="==" value="==">==</MenuItem>
+                    <MenuItem key="!=" value="!=">!=</MenuItem>
+                    <MenuItem key="in" value="in">in</MenuItem>
+                    <MenuItem key="not in" value="not in">not in</MenuItem>
                 </TextField>
                 <TextField
                     id="target"
                     select
                     label="Target"
                     name="target"
-                    defaultValue="status_code"
                     helperText="Please select matching target"
                     value={target}
                     onChange={(e) => setTarget(e.target.value)}
                     fullWidth
                     variant="standard"
                 >
-                    <MenuItem key="status_code" value="status_code">
-                        status_code
-                    </MenuItem>
-                    <MenuItem key="content" value="content">
-                        content
-                    </MenuItem>
+                    <MenuItem key="status_code" value="status_code">status_code</MenuItem>
+                    <MenuItem key="content" value="content">content</MenuItem>
                 </TextField>
                 <TextField
                     margin="dense"
@@ -223,7 +255,6 @@ function OnlineServiceDialog(props: Props) {
                     onChange={(e) => setData(e.target.value)}
                 />
                 <TextField
-                    autoFocus
                     required
                     margin="dense"
                     id="hbi"
@@ -231,11 +262,10 @@ function OnlineServiceDialog(props: Props) {
                     label="HeartBeat Interval (in seconds)"
                     type="number"
                     InputProps={{ inputProps: { min: 1 } }}
-                    defaultValue={1800}
-                    fullWidth
-                    variant="standard"
                     value={heartbeatInterval}
                     onChange={(e) => setHeartbeatInterval(parseInt(e.target.value))}
+                    fullWidth
+                    variant="standard"
                 />
             </DialogContent>
             <DialogActions>

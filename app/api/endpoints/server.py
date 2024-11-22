@@ -3,7 +3,7 @@ SSH SERVER API ENDPOINT
 """
 
 import sqlalchemy.exc
-from fastapi import (APIRouter, File, Form, HTTPException, Query, Response,
+from fastapi import (APIRouter, File, Form, HTTPException, Query, Request, Response,
                      UploadFile, WebSocket, WebSocketDisconnect, status)
 
 from app import crud
@@ -15,24 +15,33 @@ from app.src import connection_manager
 router = APIRouter()
 
 
-@router.get("/{id_server}",responses={
+@router.get("/{id_server}", responses={
             200: {"model": ServerDetail},
             404: {"model": HTTPError},
         }
     )
 async def get_server_by_id(
+        request: Request,
         session: SessionDep,
         response: Response,
         id_server: int,
     ):
     """
-    get SSH Server by id
+    Get SSH Server by id with optional query parameters for specific fields.
     """
     s = await crud.server.get_server_by_id(session=session, id_server=id_server)
+    s = ServerDetail.model_validate(s)
     if s:
-        return ServerDetail.model_validate(s)
+        # If there are query parameters, filter the response
+        if request.query_params:
+            response_data = {}
+            for key in request.query_params.keys():
+                if hasattr(s, key):
+                    response_data[key] = getattr(s, key)
+            return response_data  # Return only the requested fields
+        return s  # Return full ServerDetail if no query params
     response.status_code = status.HTTP_404_NOT_FOUND
-    return HTTPException(status_code=404)
+    raise HTTPException(status_code=404, detail="Server not found")
 
 
 @router.get("/",responses={

@@ -62,13 +62,14 @@ class SSHManager(Singleton):
         remove ssh from manager
         """
         try:
-            if ssh is not None:
+            if channel is not None:
+                cls.active_connections.pop(channel)
+            elif ssh is not None:
                 for ch in cls.active_connections.items():
                     if ssh == ch[1]:
-                        cls.active_connections.pop(ch[0])
                         channel = ch[0]
-            elif channel is not None:
-                cls.active_connections.pop(channel)
+                        break
+                cls.active_connections.pop(channel) # type: ignore
             else:
                 raise ValueError("both ssh and channel can not be None")
 
@@ -82,6 +83,11 @@ class SSHManager(Singleton):
         """
         try to reconnect to ssh host or renew if congif updated
         """
+        if id_server is None:
+            for ac in cls.active_connections.items():
+                if ac[1] == ssh:
+                    id_server = ac[0]
+                    break
         await cls.disconnect(ssh=ssh, channel=id_server)
         return await cls.get_ssh_client(server=None, id_server=id_server)
 
@@ -95,8 +101,8 @@ class SSHManager(Singleton):
             if ssh.get_transport():
                 res = ssh.get_transport().is_active()
             else:
-                await cls.renew_client(ssh=ssh, id_server=None)
                 if retry > 0:
+                    await cls.renew_client(ssh=ssh, id_server=None)
                     return await cls.is_active(ssh=ssh, retry=retry-1)
             return res
         except Exception:
@@ -113,8 +119,8 @@ class SSHManager(Singleton):
             _, stdout, _ = ssh.exec_command("free -m")
             output = stdout.read().decode("utf-8")
             splited_output = [i.strip().split() for i in output.split('\n')]
-            memory = splited_output[1][1]
-            used_memory = splited_output[1][2]
+            memory = int(splited_output[1][1])
+            used_memory = int(splited_output[1][2])
 
             # check dick status
             _, stdout, _ = ssh.exec_command("df")
@@ -182,6 +188,7 @@ class SSHManager(Singleton):
         """
         create new ssh client
         """
+        ssh = paramiko.SSHClient()
         try:
             if server is None and id_server is None:
                 raise ValueError("Both server and id_server can not be None")
@@ -190,24 +197,24 @@ class SSHManager(Singleton):
                 server = session.get(Server, id_server)
             if server is None:
                 raise ValueError("server does not exist")
-            ssh = paramiko.SSHClient()
+            await cls.__connect(ssh=ssh, channel=server.id_server) # type: ignore
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             if server.password:
                 ssh.connect(
                     hostname=server.ip,
+                    port=server.port,
                     username=server.username,
                     password=server.password
                 )
-                await cls.__connect(ssh=ssh, channel=server.id_server) # type: ignore
                 return ssh
             elif server.keyfilename:
                 k = paramiko.RSAKey.from_private_key_file(server.keyfilename)
                 ssh.connect(
                     hostname=server.ip,
+                    port=server.port,
                     username=server.username,
                     pkey=k
                 )
-                await cls.__connect(ssh=ssh, channel=server.id_server) # type: ignore
                 return ssh
             else:
                 raise ValueError("Both `Password` and `keyfile` can not be None")
@@ -215,10 +222,10 @@ class SSHManager(Singleton):
         except paramiko.ssh_exception.NoValidConnectionsError as e:
             logger.debug("ssh connection error. id_server: %d", server.id_server) # type: ignore
             logger.exception(e)
-            return None
+            return ssh
         except Exception as e:
             logger.exception(e)
-            return None
+            return ssh
 
 
 class ServiceConnectionManager(Singleton):
@@ -346,10 +353,10 @@ class ServerConnectionManager(Singleton):
             sshm = SSHManager()
             session = next(get_db())
             servers = session.exec(select(Server)).all()
+            cls.active_connections: list[WebSocket] = []
             for i in servers:
                 asyncio.create_task(sshm.get_ssh_client(server=i, id_server=None))
-            cls.active_connections: list[WebSocket] = []
-            asyncio.create_task(update_server_load_board(cls, sshm))
+            asyncio.create_task(update_server_load_board(cls, sshm)) # type: ignore
             logger.debug("Server Connection Manager initialized")
         except Exception as e:
             logger.exception(e)

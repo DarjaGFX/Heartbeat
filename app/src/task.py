@@ -149,8 +149,8 @@ async def update_server_load_board(cm: "ServerConnectionManager", sshm: "SSHMana
             if len(cm.active_connections):
                 response = {}
                 for s in sshm.active_connections.items():
-                    active = await sshm.is_active(ssh=s[1], retry=3)
-                    status = await sshm.get_server_status(ssh=s[1], retry=3)
+                    active = await sshm.is_active(ssh=s[1], retry=0)
+                    status = await sshm.get_server_status(ssh=s[1], retry=0)
                     response.update({
                         s[0]: {
                             "active": active,
