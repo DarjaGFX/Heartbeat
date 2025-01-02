@@ -1,0 +1,22 @@
+{
+    "CodeGPT.apiKey": "CodeGPT Plus Beta",
+    "sqltools.useNodeRuntime": true,
+    "sqltools.connections": [
+        {
+            "previewLimit": 50,
+            "server": "127.0.0.1",
+            "port": 5432,
+            "driver": "PostgreSQL",
+            "name": "test",
+            "username": "postgres",
+            "password": "951357",
+            "database": "wikidb"
+        },
+        {
+            "previewLimit": 50,
+            "driver": "SQLite",
+            "database": "/home/ali/Codes/HeartBeat/Heartbeat/database.db",
+            "name": "HB"
+        }
+    ]
+}

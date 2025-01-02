@@ -4,6 +4,7 @@ Main file of heartbeat service
 import json
 import logging
 import logging.config
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -14,6 +15,8 @@ from app.api.api import api_router
 from app.api.deps import get_db
 from app.src import callbacks
 
+
+os.makedirs('app/logs', exist_ok=True)
 with open('app/logging.json', encoding="utf-8") as f:
     logging.config.dictConfig(config=json.loads(f.read())) # type: ignore
 

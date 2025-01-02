@@ -5,11 +5,15 @@ import { DrawerServerItem, ServerWSResponse } from "@/types";
 import SideDrawerItem from './SideDrawerItem';
 import { ClickAwayListener } from '@mui/base';
 import { fetchServer, fetchServers } from '@/utils/api/serverApi';
+import GitHubIcon from "@mui/icons-material/GitHub";
 
 type Props = {
     status: ServerWSResponse,
     open: boolean,
     setOpen: (open: boolean) => void,
+    servers: DrawerServerItem[],
+    setServers: (servers: DrawerServerItem[]) => void,
+    pageSetState: (content: number) => void,
 }
 
 
@@ -17,19 +21,25 @@ function SideDrawer(props: Props) {
     // Drawer
     const drawerWidth = 300;
 
-    const [servers, setServers] = React.useState<DrawerServerItem[]>([]);
     
-    React.useEffect(() => {
+    
+    const getServers = () => {
         fetchServers()
         .then(data => {
-            setServers(data);
+            props.setServers(data);
         })
-    }, []); // Added empty dependency array to fetch servers only once
+    }
 
     // sync prefetched servers with status
     React.useEffect(() => {
         const statusServers = Object.keys(props.status);
-        const currentServers = servers.map(server => server.id_server);
+        if ( statusServers.length != props.servers.length ) {
+            getServers();
+        }
+        
+        
+        const currentServers = props.servers.map(server => server.id_server);
+        
         
         const newServers = statusServers.filter(serverId => !currentServers.includes(Number(serverId)));
         
@@ -48,10 +58,10 @@ function SideDrawer(props: Props) {
                         id_server: Number(server.id_server), // Ensure id_server is a number
                         name: server.name
                     })) as DrawerServerItem[]; // Cast to DrawerServerItem[]
-                setServers(prevServers => [...prevServers, ...validNewServers]);
+                    props.setServers(prevServers => [...prevServers, ...validNewServers]);
             });
         }
-    }, [props.status, servers]);
+    }, [props.status, props.servers]);
 
 
     // React.useEffect(() => {
@@ -86,14 +96,25 @@ function SideDrawer(props: Props) {
                     {/* <div className='flex align-middle content-center justify-center'>
                         <ListItemText primary="Servers"/>
                     </div> */}
-                    <Divider variant="middle" component="li" />
+                    {/* <Divider variant="middle" component="li" /> */}
                     {Object.entries(props.status).map(serv => {
-                        const server = servers.find(s => s.id_server === Number(serv[0]));
+                        const server = props.servers.find(s => s.id_server === Number(serv[0]));
                         return server ? (
-                            <SideDrawerItem key={serv[0]} status={serv[1]} server={server} />
+                            <SideDrawerItem drawerSetOpen={props.setOpen} pageSetState={props.pageSetState} key={serv[0]} status={serv[1]} server={server} />
                         ) : null;
                     })}
                 </List>
+                <div className='flex h-full m-4'>
+                    <div className='self-end  w-full'>
+                        <Divider className='mb-3'/>
+                        <div>
+                            <a href='https://github.com/DarjaGFX/heartbeat'>
+                                <GitHubIcon className='m-1 mb-2'/>
+                                <span>Heartbeat</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </Drawer>
         // </ClickAwayListener>
     )

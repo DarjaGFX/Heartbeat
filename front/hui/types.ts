@@ -3,11 +3,11 @@
 export type ServerData = {
   active: boolean;
   status: {
-    "cpu_usage_percentage": number,
-    "total_memory_in_KB": number,
-    "used_memory_in_KB": number,
-    "total_disk_in_KB": number,
-    "used_disk_in_KB": number
+    cpu_usage_percentage: number,
+    total_memory_in_KB: number,
+    used_memory_in_KB: number,
+    total_disk_in_KB: number,
+    used_disk_in_KB: number
   } | null
 }
 

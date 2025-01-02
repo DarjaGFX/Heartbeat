@@ -4,8 +4,10 @@ redis
 requests
 pytest
 pylint
-uvicorn
+uvicorn[standard]
 pytest_asyncio
 paramiko[all]
 alembic
 sqlmodel
+python-dotenv
+python-multipart

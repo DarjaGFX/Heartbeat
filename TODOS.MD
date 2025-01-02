@@ -1,7 +1,7 @@
-IDEAS:
-    [] add pinger for server! show tiny line graph or sth else for visualising server accessibility
+# FIX!!!!!:
+    [] FIX: add/load "unreachable server, Timeout connecting to a server, Authentication Failiures cause backend to be unable to response! handle connection issues in background or a independant thread!
 
-TODOS:
+## TODOS:
     [] create ssh connection for each new creating servers
     [] create ssh connection for each in db stored servers on service start up
 
@@ -10,7 +10,12 @@ TODOS:
     [] install SSH in docker image (add command in dockerfile) // ? why? SSH should be installed on hosts! awa curl!
     [] service.beats list may have lots of items. check how to load limited sized relation fields
 
-DONE:        
+
+### IDEAS:
+    [] add pinger for server! show tiny line graph or sth else for visualising server accessibility
+
+
+#### DONE:        
     [X] add another connection manager for server sockets
     [X] merge service socket endpoints and have one -> needs change channel function in ServiceConnectionManager, each socket can change its channel if it recieves a message containing server or service id
     [X] check Relationship

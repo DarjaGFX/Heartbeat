@@ -15,11 +15,14 @@ import ServerDialog from '../ServiceDialog/ServerDialog';
 import JournalServiceDialog from '../ServiceDialog/JournalServiceDialog';
 import OnlineServiceDialog from '../ServiceDialog/OnlineServiceDialog';
 import { DrawerServerItem, ServerData } from '@/types';
+import ServerStats from '../MainView/ServerStats';
 
 
 type Props = {
     server: DrawerServerItem,
-    status: ServerData
+    status: ServerData,
+    pageSetState: (content: number) => void,
+    drawerSetOpen: (open: boolean) => void,
 }
 
 function SideDrawerItem(props: Props) {
@@ -35,12 +38,17 @@ function SideDrawerItem(props: Props) {
         setDialogOpen(false);
     };
 
+    const setPageState = () =>{
+        props.pageSetState(props.server.id_server);
+        // props.drawerSetOpen(false);
+    }
+
     // Remove Request
     function removeServer(){
         // add loading and notify the result
         const tst = toast.loading(`removing ${props.server.name}...`)
         try{
-            fetch(`${process.env.NEXT_PUBLIC_BACKEND_HOST}/server/`+props.server.name,{
+            fetch(`${process.env.NEXT_PUBLIC_BACKEND_HOST}/server/`+props.server.id_server,{
                 method: 'DELETE',
                 headers: {
                     "accept": "application/json"
@@ -86,7 +94,7 @@ function SideDrawerItem(props: Props) {
         <ListItemButton>
             <Box
                 sx={{ 
-                    marginTop: 1,
+                    // marginTop: 1,
                     marginRight: 1,
                     width: 8,
                     height: 8,
@@ -94,10 +102,13 @@ function SideDrawerItem(props: Props) {
                     bgcolor: statusColor,
                 }}
             />
-            <ListItemText primary={props.server.name} />
-            <IconButton onClick={() => setEditOpen(true)}>
-                <EditIcon/>
-            </IconButton>
+            <ListItemText primary={props.server.name} onClick={setPageState}/>
+            {/* <ServerStats status={props.status} /> */}
+            <MuiTooltip title="Edit Server"> 
+                <IconButton onClick={() => setEditOpen(true)}>
+                    <EditIcon/>
+                </IconButton>
+            </MuiTooltip> 
             <MuiTooltip title="Remove Server">   
                 <IconButton onClick={handleClickOpen} >
                     <CloseIcon/>

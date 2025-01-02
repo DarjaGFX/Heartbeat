@@ -6,9 +6,9 @@ import AddOnlineServiceDialog from "@/components/ServiceDialog/OnlineServiceDial
 import AddServerDialog from "@/components/ServiceDialog/ServerDialog";
 import AddSystemdServiceDialog from "@/components/ServiceDialog/SystemdServiceDialog";
 import useServerWS from "@/hooks/useServerWS";
+import useServiceWS from "@/hooks/useServiceWS";
 import { DrawerServerItem } from "@/types";
 import { fetchServers } from "@/utils/api/serverApi";
-import GitHubIcon from "@mui/icons-material/GitHub";
 import MonitorHeartIcon from "@mui/icons-material/MonitorHeart";
 import NewspaperIcon from "@mui/icons-material/Newspaper";
 import PublicIcon from "@mui/icons-material/Public";
@@ -35,6 +35,8 @@ import { Theme, ThemeProvider, createTheme } from "@mui/material/styles";
 import Switch from "@mui/material/Switch";
 import { createContext, useMemo, useState, useEffect } from "react";
 import { Toaster } from "react-hot-toast";
+import ServerView from "@/components/MainView/ServerView";
+import ServiceView from "@/components/MainView/ServiceView";
 
 const Search = styled('div')(({ theme }) => ({
     position: 'relative',
@@ -133,6 +135,14 @@ const MaterialUISwitch = styled(Switch)(({ theme }: { theme: Theme }) => ({
 }));
 
 export default function Home() {
+
+    // Drawer Handling
+    const [drawerOpen, setDrawerOpen] = useState(false);
+
+    const toggleDrawer = () => {
+        setDrawerOpen(!drawerOpen); // Fixed drawer toggle logic
+    }
+
     // WebSocket and chart data handling
     // const service_ws = useServiceWS();
     // Dialog Handling
@@ -141,10 +151,22 @@ export default function Home() {
     const [journalDialogOpen, setJournalDialogOpen] = useState(false);
     const [onlineDialogOpen, setOnlineDialogOpen] = useState(false);
 
-    const handleSystemdClickOpen = () => setSystemdDialogOpen(true);
-    const handleServerClickOpen = () => setServerDialogOpen(true);
-    const handleJournalClickOpen = () => setJournalDialogOpen(true);
-    const handleOnlineClickOpen = () => setOnlineDialogOpen(true);
+    const handleSystemdClickOpen = () => {
+        setDrawerOpen(false);
+        setSystemdDialogOpen(true);
+    }
+    const handleServerClickOpen = () => {
+        // setDrawerOpen(false);
+        setServerDialogOpen(true);
+    }
+    const handleJournalClickOpen = () => {
+        // setDrawerOpen(false);
+        setJournalDialogOpen(true);
+    }
+    const handleOnlineClickOpen = () => {
+        // setDrawerOpen(false);
+        setOnlineDialogOpen(true);
+    }
 
     const actions = [
         { icon: <StorageIcon />, name: "New Server", onclick: handleServerClickOpen },
@@ -180,19 +202,21 @@ export default function Home() {
         setMode(newMode);
         localStorage.setItem('theme', newMode); // Save new theme to localStorage
     };
+    // server list
+    const [servers, setServers] = useState<DrawerServerItem[]>([]);
 
     // Server List for Drawer
     const server_ws = useServerWS();
 
+    // Service Beats ws
+    const service_ws = useServiceWS();
+
     // Page Title
     const [pageTitle, setPageTitle] = useState("HeartBeat");
 
-    // Drawer Handling
-    const [drawerOpen, setDrawerOpen] = useState(false);
+    // Page Content State
+    const [pageContent, setPageContent] = useState<number>(0);
 
-    const toggleDrawer = () => {
-        setDrawerOpen(!drawerOpen); // Fixed drawer toggle logic
-    };
 
     return (
         <ThemeProvider theme={theme}>
@@ -261,49 +285,63 @@ export default function Home() {
                             </div>
                         </div>
                         {/* </div> */}
-                    </Toolbar>
-                    <div id="speedDial" className="fixed right-6 bottom-6">
-                        <Box sx={{ 
-                            zIndex: 2000,
-                            height: 320,
-                            transform: 'translateZ(0px)',
-                            flexGrow: 1 
-                            }}>
-                            <SpeedDial
-                                ariaLabel="SpeedDial basic example"
-                                sx={{ position: 'absolute', bottom: 16, right: 16, zIndex: 1300 }}
-                                icon={<SpeedDialIcon />}
-                            >
-                                {actions.map((action) => (
-                                    <SpeedDialAction
-                                        sx={{
-                                            zIndex: 2000,
-                                            transform: 'translateZ(0px)',
-                                        }}
-                                        key={action.name}
-                                        icon={action.icon}
-                                        tooltipTitle={action.name}
-                                        onClick={action.onclick}
-                                    />
-                                ))}
-                            </SpeedDial>
-                        </Box>
+                        <div id="speedDial" className="fixed right-6 bottom-6">
+                            <Box sx={{ 
+                                zIndex: 2000,
+                                height: 320,
+                                transform: 'translateZ(0px)',
+                                flexGrow: 1 
+                                }}>
+                                <SpeedDial
+                                    ariaLabel="SpeedDial basic example"
+                                    sx={{ position: 'absolute', bottom: 16, right: 16, zIndex: 1300 }}
+                                    icon={<SpeedDialIcon />}
+                                >
+                                    {actions.map((action) => (
+                                        <SpeedDialAction
+                                            sx={{
+                                                zIndex: 2000,
+                                                transform: 'translateZ(0px)',
+                                            }}
+                                            key={action.name}
+                                            icon={action.icon}
+                                            tooltipTitle={action.name}
+                                            onClick={action.onclick}
+                                        />
+                                    ))}
+                                </SpeedDial>
+                            </Box>
 
-                        <AddServerDialog open={serverDialogOpen} setOpen={setServerDialogOpen} />
-                        <AddSystemdServiceDialog open={systemdDialogOpen} setOpen={setSystemdDialogOpen} />
-                        <AddJournalServiceDialog open={journalDialogOpen} setOpen={setJournalDialogOpen} />
-                        <AddOnlineServiceDialog open={onlineDialogOpen} setOpen={setOnlineDialogOpen} />
-                    </div>
+                            <AddServerDialog open={serverDialogOpen} setOpen={setServerDialogOpen} />
+                            <AddSystemdServiceDialog open={systemdDialogOpen} setOpen={setSystemdDialogOpen} />
+                            <AddJournalServiceDialog open={journalDialogOpen} setOpen={setJournalDialogOpen} />
+                            <AddOnlineServiceDialog open={onlineDialogOpen} setOpen={setOnlineDialogOpen} />
+                        </div>
+                    </Toolbar>
                 </AppBar>
 
 
-                <SideDrawer status={server_ws} open={drawerOpen} setOpen={setDrawerOpen} />
+                <SideDrawer pageSetState={setPageContent} status={server_ws} open={drawerOpen} setOpen={setDrawerOpen} servers={servers} setServers={setServers} />
                 
-                <div className="bg-inherit flex-wrap col-span-7 mt-28 w-auto h-auto">
+                <div className="bg-inherit flex-wrap col-span-7 mt-28 w-auto h-auto ">
                     {/* Uncomment below to render charts if needed */}
                     {/* {Object.keys(message).map((serviceName) => (
                         <ServiceChart key={serviceName} serviceName={serviceName} message={message[serviceName]} theme={theme} />
                     ))} */}
+                    <ServerView 
+                        theme={theme}
+                        serverBeats={server_ws}
+                        pageState={pageContent}
+                        serverList={servers}
+                        // serviceBeats={service_ws}
+                    >
+                    </ServerView>
+                    <ServiceView 
+                        theme={theme}
+                        pageState={pageContent}
+                        serviceBeats={service_ws}
+                    >
+                    </ServiceView>
                 </div>
             </main>
         </ThemeProvider>
