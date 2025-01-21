@@ -2,6 +2,7 @@
 SSH SERVER API ENDPOINT
 """
 
+from threading import Thread
 import sqlalchemy.exc
 from fastapi import (APIRouter, File, Form, HTTPException, Query, Request, Response,
                      UploadFile, WebSocket, WebSocketDisconnect, status)
@@ -115,8 +116,12 @@ async def creata_server(
             content = await keyfile.read()
             sf = str(sf)
             await savefile(content=content, filename=kfn, sub_folder=sf)
-        sshm = connection_manager.SSHManager()
-        await sshm.get_ssh_client(server=in_db_server, id_server=None)
+        Thread(
+            target=connection_manager.get_ssh_clint,
+            args=(in_db_server.id_server,),
+            daemon=True,
+            name="get ssh client"
+        ).start()
         response.status_code = status.HTTP_201_CREATED
         return ServerDetail.model_validate(in_db_server)
     except sqlalchemy.exc.IntegrityError:
@@ -176,8 +181,12 @@ async def update_server(
                 status_code=response.status_code,
                 detail="Server not found"
             )
-        sshm = connection_manager.SSHManager()
-        await sshm.renew_client(ssh=None, id_server=db_obj.id_server)
+        Thread(
+            target=connection_manager.renew_ssh_clint,
+            args=(db_obj.id_server,),
+            daemon=True,
+            name="renew ssh client"
+        ).start()
         return ServerDetail.model_validate(db_obj)
     except ValueError as e:
         response.status_code = status.HTTP_406_NOT_ACCEPTABLE

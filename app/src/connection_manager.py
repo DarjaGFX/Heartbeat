@@ -62,7 +62,8 @@ class SSHManager(Singleton):
         remove ssh from manager
         """
         try:
-            if channel is not None:
+            logger.debug("disconnecting ssh client from channel :%d, current active connections %s", channel, cls.active_connections)
+            if channel is not None and channel in cls.active_connections:
                 cls.active_connections.pop(channel)
             elif ssh is not None:
                 for ch in cls.active_connections.items():
@@ -237,7 +238,6 @@ class ServiceConnectionManager(Singleton):
     def __init__(cls):
         try:
             cls.active_connections: dict[int, list[WebSocket]] = {}
-            asyncio.create_task(update_live_board(cls))
             logger.debug("Service Connection Manager initialized")
         except Exception as e:
             logger.exception(e)
@@ -350,13 +350,7 @@ class ServerConnectionManager(Singleton):
     @classmethod
     def __init__(cls):
         try:
-            sshm = SSHManager()
-            session = next(get_db())
-            servers = session.exec(select(Server)).all()
             cls.active_connections: list[WebSocket] = []
-            for i in servers:
-                asyncio.create_task(sshm.get_ssh_client(server=i, id_server=None))
-            asyncio.create_task(update_server_load_board(cls, sshm)) # type: ignore
             logger.debug("Server Connection Manager initialized")
         except Exception as e:
             logger.exception(e)
@@ -410,3 +404,18 @@ class ServerConnectionManager(Singleton):
             # logger.debug("message: %s , broadcasted")
         except Exception as e:
             logger.exception(e)
+
+
+
+def get_ssh_clint(i):
+    """
+    run async get ssh client function. (to be used in separated Thread)
+    """
+    asyncio.run(SSHManager().get_ssh_client(id_server=i, server=None))
+
+
+def renew_ssh_clint(i):
+    """
+    run async renew ssh client function. (to be used in separated Thread)
+    """
+    asyncio.run(SSHManager().renew_client(id_server=i, ssh=None))

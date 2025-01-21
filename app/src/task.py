@@ -5,7 +5,6 @@ import asyncio
 import datetime
 import logging
 import os
-from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
 from fastapi.encoders import jsonable_encoder
@@ -15,10 +14,6 @@ from app.api.deps import get_db
 from app.models import BeatCreate, Service, ServiceTypeEnum, ServiceWithBeats
 from app.src import checker
 
-if TYPE_CHECKING:
-    from app.src.connection_manager import (ServerConnectionManager,
-                                            ServiceConnectionManager,
-                                            SSHManager)
 
 logger = logging.getLogger(__name__)
 load_dotenv()
@@ -90,11 +85,13 @@ async def run_beater(id_service: int):
         await asyncio.sleep(sleep)
 
 
-async def update_live_board(cm: "ServiceConnectionManager"):
+async def update_live_board():
     """
     update status board with latest check results and send to clients using WS connection manager
     """
+    from app.src.connection_manager import ServiceConnectionManager
     while True:
+        cm = ServiceConnectionManager()
         session = next(get_db())
         try:
             if len(cm.active_connections):
@@ -140,12 +137,15 @@ async def update_live_board(cm: "ServiceConnectionManager"):
         await asyncio.sleep(10)
 
 
-async def update_server_load_board(cm: "ServerConnectionManager", sshm: "SSHManager"):
+async def update_server_load_board():
     """
     update status board with latest check results and send to clients using WS connection manager
     """
+    from app.src.connection_manager import ServerConnectionManager, SSHManager
     while True:
         try:
+            cm = ServerConnectionManager()
+            sshm = SSHManager()
             if len(cm.active_connections):
                 response = {}
                 for s in sshm.active_connections.items():
