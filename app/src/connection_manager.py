@@ -8,11 +8,9 @@ from typing import Optional
 import paramiko
 import paramiko.ssh_exception
 from fastapi import WebSocket
-from sqlmodel import select
 
 from app.api.deps import get_db
 from app.models import Server
-from app.src.task import update_live_board, update_server_load_board
 
 logger = logging.getLogger(__name__)
 
