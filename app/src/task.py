@@ -3,7 +3,6 @@ modulefor repetetive tasks like checking service status and sending results
 """
 import asyncio
 import datetime
-import logging
 import os
 
 from dotenv import load_dotenv
@@ -11,10 +10,11 @@ from fastapi.encoders import jsonable_encoder
 
 from app import crud
 from app.api.deps import get_db
+from app.core.logging import get_configed_logging
 from app.models import BeatCreate, Service, ServiceTypeEnum, ServiceWithBeats
 from app.src import checker
 
-
+logging = get_configed_logging()
 logger = logging.getLogger(__name__)
 load_dotenv()
 MAX_CHART_BARS = int(os.getenv("MAX_CHART_BARS", "50"))
@@ -98,7 +98,7 @@ async def update_live_board():
                 services = await crud.service.get_all_services(session=session)
                 message = {}
                 for s in services:
-                    s.beats = s.beats[::-1][:MAX_CHART_BARS]
+                    s.beats = s.beats[-MAX_CHART_BARS:]
                     swb = ServiceWithBeats.model_validate(s)
                     swb = jsonable_encoder(swb)
 

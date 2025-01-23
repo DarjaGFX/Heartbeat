@@ -3,13 +3,14 @@ Service API ENDPOINT
 """
 
 import json
-import logging
+from threading import Thread
 
 from fastapi import (APIRouter, HTTPException, Query, Response, WebSocket,
                      WebSocketDisconnect, status)
 
 from app import crud
 from app.api.deps import SessionDep
+from app.core.logging import get_configed_logging
 from app.models import (ConfigBaseJournal, ConfigBaseOnline, ConfigBaseSystemd,
                         ConfigCreate, Server, Service, ServiceCreate,
                         ServiceTypeEnum, ServiceUpdate, ServiceWithConfig)
@@ -18,6 +19,7 @@ from app.models.config import (ConfigUpdate, ConfigUpdateJournal,
 from app.schema import HTTPError
 from app.src import callbacks, connection_manager
 
+logging = get_configed_logging()
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -145,7 +147,7 @@ async def creata_service(
         resp = service_db.model_copy()
         await crud.config.create_config(session=session, conf=confcreate)
         if resp.id_service:
-            callbacks.beater_callback(args=resp.id_service)
+            Thread(target=callbacks.beater_callback, args=(resp.id_service,), daemon=True, name="beater callback").start()
         response.status_code = status.HTTP_201_CREATED
         return resp
     except Exception as e:

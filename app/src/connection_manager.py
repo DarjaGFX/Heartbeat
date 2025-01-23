@@ -2,19 +2,22 @@
 Connection Manager to manage websockets and ssh clients
 """
 import asyncio
-import logging
 from typing import Optional
 
 import paramiko
+import paramiko.util
 import paramiko.ssh_exception
 from fastapi import WebSocket
 
 from app.api.deps import get_db
+from app.core.logging import get_configed_logging
 from app.models import Server
 
+
+logging = get_configed_logging()
 logger = logging.getLogger(__name__)
 
-
+# paramiko.util.log_to_file("paramiko.log", level=10)
 
 class Singleton:
     """

@@ -1,14 +1,15 @@
 """
 CRUD for SSH Servers
 """
-import logging
 from typing import Sequence
 
 import sqlalchemy.exc
 from sqlmodel import Session, select
 
+from app.core.logging import get_configed_logging
 from app.models import Server, ServerCreate, ServerUpdate
 
+logging = get_configed_logging()
 logger = logging.getLogger(__name__)
 
 

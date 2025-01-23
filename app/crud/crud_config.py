@@ -1,12 +1,12 @@
 """
 CRUD for Service Config
 """
-import logging
-
 from sqlmodel import Session
 
+from app.core.logging import get_configed_logging
 from app.models import Config, ConfigCreate, ConfigUpdate
 
+logging = get_configed_logging()
 logger = logging.getLogger(__name__)
 
 

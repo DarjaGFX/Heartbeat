@@ -1,13 +1,14 @@
 """
 CRUD for Service
 """
-import logging
 from typing import Sequence
 
 from sqlmodel import Session, select
 
+from app.core.logging import get_configed_logging
 from app.models import Service, ServiceCreate, ServiceUpdate, ServiceTypeEnum
 
+logging = get_configed_logging()
 logger = logging.getLogger(__name__)
 
 

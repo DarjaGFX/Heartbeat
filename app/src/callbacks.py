@@ -10,4 +10,4 @@ def beater_callback(args: int):
     """
     callback to run async func of run beater task
     """
-    asyncio.create_task(run_beater(id_service=args))
+    asyncio.run(run_beater(id_service=args))

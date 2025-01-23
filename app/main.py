@@ -2,10 +2,6 @@
 Main file of heartbeat service
 """
 import asyncio
-import json
-import logging
-import logging.config
-import os
 from contextlib import asynccontextmanager
 from threading import Thread
 
@@ -16,6 +12,7 @@ from starlette.middleware.cors import CORSMiddleware
 from app import crud
 from app.api.api import api_router
 from app.api.deps import get_db
+from app.core.logging import get_configed_logging
 from app.models.server import Server
 from app.src import callbacks
 from app.src.connection_manager import (ServerConnectionManager,
@@ -23,10 +20,7 @@ from app.src.connection_manager import (ServerConnectionManager,
                                         get_ssh_clint)
 from app.src.task import update_live_board, update_server_load_board
 
-os.makedirs('app/logs', exist_ok=True)
-with open('app/logging.json', encoding="utf-8") as f:
-    logging.config.dictConfig(config=json.loads(f.read())) # type: ignore
-
+logging = get_configed_logging()
 logger = logging.getLogger(__name__)
 
 logger.info("statring ...")
@@ -43,7 +37,7 @@ async def lifespan(_):
     def update_server_load_board_runner():
         asyncio.run(update_server_load_board())
 
-    sshm = SSHManager()
+    SSHManager()
     ServerConnectionManager()
     ServiceConnectionManager()
     # STARTING UP
@@ -51,12 +45,22 @@ async def lifespan(_):
         servers = session.exec(select(Server)).all()
         for i in servers:
             # asyncio.create_task(sshm.get_ssh_client(id_server=i.id_server, server=None))
-            Thread(target=get_ssh_clint, args=(i.id_server,), daemon=True, name="get ssh client").start()
+            Thread(
+                target=get_ssh_clint,
+                args=(i.id_server,),
+                daemon=True,
+                name="get ssh client"
+            ).start()
         services = await crud.service.get_all_services(session=session, offset=0, limit=-1)
         ids = [i.id_service for i in services]
         for i in ids:
             if i:
-                callbacks.beater_callback(args=i)
+                Thread(
+                    target=callbacks.beater_callback,
+                    args=(i,),
+                    daemon=True,
+                    name="beater callback"
+                ).start()
 
     Thread(
         target=update_live_board_runner,

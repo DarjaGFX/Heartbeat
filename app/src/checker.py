@@ -2,11 +2,13 @@
 Check HB of a service in different ways such as:
 http request, systemctl status and journalctl reports
 """
-import logging
 
+
+from app.core.logging import get_configed_logging
 from app.models import Service
 from app.models.config import MethodEnum
 
+logging = get_configed_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -83,7 +85,7 @@ async def systemd_service_status(service: Service) -> tuple[bool, bool]:
             "desired_response": service.config.desired_response,
             "operator": service.config.operator
         })
-        for ch in '~!@#$%^&*()_+|}{<>?":\'\\/.,':
+        for ch in '~!@#$%^&*()_+|}{<>?":\'\\/,':
             if ch in service.service_name:
                 logger.info("service name must not contain non-alphanumeric characters")
                 raise ValueError("service name must not contain non-alphanumeric characters")
@@ -94,6 +96,11 @@ async def systemd_service_status(service: Service) -> tuple[bool, bool]:
 
         stdin, stdout, stderr = ssh.exec_command(f"systemctl status {service.service_name}")
         output = stdout.read().decode("utf-8")
+        logger.debug(
+            "service checker output for service '%s' : %s",
+            service.service_name,
+            output
+        )
         # ssh.close()
         return 'Active: active' in output, True
     except Exception as e:
