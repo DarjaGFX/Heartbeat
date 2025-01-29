@@ -5,17 +5,17 @@ const apiUrl = process.env.NEXT_PUBLIC_BACKEND_HOST;
 
 export const addOrUpdateSystemdService = async (serviceData: {
     service: {
-        id_server: number,
+        id_server?: number,
         service_name: string
     },
     config: {
         interval: number
     }
-}, isUpdate: boolean) => {
+}, id_service: number|undefined) => {
     try {
         const response = await axios({
-            method: isUpdate ? 'PUT' : 'POST',
-            url: `${apiUrl}/service`,
+            method: id_service ? 'PUT' : 'POST',
+            url: id_service ? `${apiUrl}/service/${id_service}`:`${apiUrl}/service`,
             data: serviceData,
             headers: {
                 'Content-Type': 'application/json',
@@ -30,7 +30,7 @@ export const addOrUpdateSystemdService = async (serviceData: {
 
 export const addOrUpdateOnlineService = async (serviceData: {
     service: {
-        id_server: number,
+        id_server?: number,
         service_name: string
       },
       config: {
@@ -42,11 +42,11 @@ export const addOrUpdateOnlineService = async (serviceData: {
         target: "content" | "status_code",
         data: object | null
       }
-}, isUpdate: boolean) => {
+}, id_service: number|undefined) => {
     try {
         const response = await axios({
-            method: isUpdate ? 'PUT' : 'POST',
-            url: `${apiUrl}/service`,
+            method: id_service ? 'PUT' : 'POST',
+            url: id_service ? `${apiUrl}/service/${id_service}`:`${apiUrl}/service`,
             data: serviceData,
             headers: {
                 'Content-Type': 'application/json',
@@ -68,17 +68,32 @@ export const addOrUpdateJournalService = async (serviceData: {
         desired_response: string,
         operator: "in" | "not in"
     }
-}, isUpdate: boolean) => {
+}, id_service: number|undefined) => {
     try {
         const response = await axios({
-            method: isUpdate ? 'PUT' : 'POST',
-            url: `${apiUrl}/service`,
+            method: id_service ? 'PUT' : 'POST',
+            url: id_service ? `${apiUrl}/service/${id_service}`:`${apiUrl}/service`,
             data: serviceData,
             headers: {
                 'Content-Type': 'application/json',
             },
         });
         return response;
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const getServiceById = async (id: number) => {
+    try {
+        const response = await axios({
+            method: 'GET',
+            url: `${apiUrl}/service/${id}`,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+        return response.data;
     } catch (error) {
         throw error;
     }

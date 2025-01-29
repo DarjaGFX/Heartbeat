@@ -1,25 +1,21 @@
-import { DrawerServerItem, ServerWSResponse } from '@/types'
-import React, { useEffect } from 'react'
-import Guage from './Guage'
-import { title } from 'process'
+import { ServerWSResponse, ServiceWSResponse } from '@/types'
+import React, { useEffect, useState } from 'react'
 import ServerStats from './ServerStats'
 import { Box, Card, Typography } from '@mui/material'
+import ServiceChart from '../Chart/ServiceChart'
 
 type Props = {
-    pageState: number,
-    serverBeats?: ServerWSResponse,
-    serverList?: DrawerServerItem[],
-    // serviceBeats?: any,
+    server_id: number,
+    serverBeats: ServerWSResponse,
+    serviceBeats?: ServiceWSResponse,
     theme?: any
 }
 
 function ServerView(props: Props) {
- 
   return (
-    <div className='flex flex-col'>
-      {/* <div className='flex justify-between h-32 w-auto '> */}
+    <div className='flex flex-col items-center content-center justify-center'>
       <Card 
-          className='md:flex-row'
+          className=' xl:flex-row'
           sx= {{
             display: 'flex',
             flexDirection: 'column',
@@ -41,33 +37,44 @@ function ServerView(props: Props) {
             height: 'max'
           }}>
           
-            { props.pageState > 0 ? <Typography
-                variant="h4"
-                component="div"
-                sx={{ 
-                  marginLeft: 5,
-                  marginRight: 5,
-                  flexGrow: 1,
-                  justifySelf: 'center',
-                  alignSelf: 'center'
-                }}
-                color={props.theme.palette.text.secondary}
-                noWrap
-                className='text-center'
-                gutterBottom
-              >
-                {Object.entries(props.serverList).find(x => Number(x[1].id_server)==props.pageState)[1].name} 
-              </Typography> : ""
-            }
+            <Typography
+              variant="h4"
+              component="div"
+              sx={{ 
+                marginLeft: 5,
+                marginRight: 5,
+                flexGrow: 1,
+                justifySelf: 'center',
+                alignSelf: 'center'
+              }}
+              // color={props.theme.palette.text.secondary}
+              noWrap
+              className='text-center'
+              gutterBottom
+            >
+              Server Stats
+            </Typography>
           
         </Box>
         <div className='flex'>
-          {props.serverList?.length > 0 ? props.pageState > 0 ? <ServerStats theme={props.theme} status={Object.entries(props.serverBeats).find(x => Number(x[0])==props.pageState)[1]} /> : "NO SERVER SELECTED" : "ADD SERVERS TO SEE REPORTS"}
+          <ServerStats theme={props.theme} status={Object.entries(props.serverBeats).find(x => Number(x[0])==props.server_id)[1]} /> 
         </div>
       </Card>
-      <div className='flex flex-col'>
-        {/* { props.serviceBeats ? Object.entries(props.serviceBeats).map(([key, value]) => {}) : "" } */}
-        {/* { props.serviceBeats ? console.log("server beats:", props.serviceBeats[props.pageState]) : "" } */}
+      <div className='flex flex-col' >
+        {props.serviceBeats && Object.entries(props.serviceBeats)
+          .filter(x => Number(x[0]) == props.server_id)
+          .map((servs: any) => servs[1].map((s: any) => (
+            <ServiceChart 
+              key={`${s.id_service}-${s.service_type}`}
+              service_type={s.service_type}
+              id_service={s.id_service}
+              serviceName={s.service_name}
+              message={s.beats}
+              theme={props.theme}
+            />
+          ))
+          )
+        }
       </div>
     </div>
   )

@@ -2,12 +2,12 @@ import React, { useEffect, useState } from "react";
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, InputLabel, MenuItem, Select, SelectChangeEvent, TextField } from "@mui/material";
 import toast from "react-hot-toast";
 import { fetchServers } from '@/utils/api/serverApi'; // Import the fetchServers function
-import { addOrUpdateOnlineService } from '@/utils/api/serviceApi'; // Import the API function for adding/updating online services
+import { addOrUpdateOnlineService, getServiceById } from '@/utils/api/serviceApi'; // Import the API function for adding/updating online services
 
 type Props = {
     open: boolean;
     setOpen: (open: boolean) => void;
-    data?: any;
+    data?: number;
 };
 
 type ServerListRes = {
@@ -35,15 +35,24 @@ function OnlineServiceDialog(props: Props) {
             loadServers();
             if (props.data) {
                 // Populate form fields if in update mode
-                setName(props.data.service_name ?? "");
-                setMethod(props.data.method ?? "get");
-                setUrl(props.data.url ?? "");
-                setDesiredResponse(props.data.desired_response ?? "");
-                setOperator(props.data.operator ?? "==");
-                setTarget(props.data.target ?? "status_code");
-                setData(props.data.data ?? "");
-                setHeartbeatInterval(props.data.period_sec ?? 1800);
-                setSelectedServer(props.data.server_id ?? '');
+                const fetchData = async () => {
+                    try {
+                        const response = await getServiceById(props.data);
+                        setName(response.service_name ?? "");
+                        setMethod(response.config.method ?? "GET");
+                        setUrl(response.config.url ?? "");
+                        setDesiredResponse(response.config.desired_response ?? "");
+                        setOperator(response.config.operator ?? "==");
+                        setTarget(response.config.target ?? "status_code");
+                        setData(response.config.data ?? "");
+                        setHeartbeatInterval(response.config.interval ?? 1800);
+                        setSelectedServer(response.id_server ?? '');
+                    } catch (error) {
+                        toast.error('Failed to load service data');
+                    }
+                };
+
+                fetchData();
             }
         } else {
             // Reset form fields when dialog is closed
@@ -102,7 +111,7 @@ function OnlineServiceDialog(props: Props) {
         };
 
         try {
-            const response = await addOrUpdateOnlineService(serviceData, isUpdate);
+            const response = await addOrUpdateOnlineService(serviceData, props.data);
 
             if (response.status === 200 || response.status === 201) {
                 toast.success(`${name} successfully ${isUpdate ? 'updated' : 'added'}.`, {
@@ -172,7 +181,7 @@ function OnlineServiceDialog(props: Props) {
                     variant="standard"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    disabled={!!props.data}
+                    // disabled={!!props.data}
                 />
                 <TextField
                     id="method"
@@ -261,7 +270,7 @@ function OnlineServiceDialog(props: Props) {
                     name="hbi"
                     label="HeartBeat Interval (in seconds)"
                     type="number"
-                    InputProps={{ inputProps: { min: 1 } }}
+                    InputProps={{ inputProps: { min: 10 } }}
                     value={heartbeatInterval}
                     onChange={(e) => setHeartbeatInterval(parseInt(e.target.value))}
                     fullWidth
@@ -269,7 +278,7 @@ function OnlineServiceDialog(props: Props) {
                 />
             </DialogContent>
             <DialogActions>
-                <Button onClick={handleClose}>Cancel</Button>
+                <Button onClick={handleClose} color='inherit'>Cancel</Button>
                 <Button type="submit">{props.data ? 'Update' : 'Add'}</Button>
             </DialogActions>
         </Dialog>

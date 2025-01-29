@@ -27,30 +27,31 @@ const useWebSocket = () => {
 
     socket.onmessage = (event) => {
       const newData: ServiceDataSet = JSON.parse(event.data);
-      setMessage((prevMessage) => {
-        const updatedMessage = { ...prevMessage };
-        for (const k of Object.keys(newData)) {
-          if (updatedMessage[k]) {
-            updatedMessage[k] = [
-              ...updatedMessage[k],
-              ...newData[k].filter(
-                (newItem) =>
-                  !updatedMessage[k].some(
-                    (existingItem) => existingItem.timestamp === newItem.timestamp
-                  )
-              ),
-            ];
-          } else {
-            updatedMessage[k] = newData[k];
-          }
-        }
-        for (const k of Object.keys(updatedMessage)) {
-          if (!Object.keys(newData).includes(k)) {
-            delete updatedMessage[k];
-          }
-        }
-        return updatedMessage;
-      });
+      // setMessage((prevMessage) => {
+      //   const updatedMessage = { ...prevMessage };
+      //   for (const k of Object.keys(newData)) {
+      //     if (updatedMessage[k]) {
+      //       updatedMessage[k] = [
+      //         ...updatedMessage[k],
+      //         ...newData[k].filter(
+      //           (newItem) =>
+      //             !updatedMessage[k].some(
+      //               (existingItem) => existingItem.timestamp === newItem.timestamp
+      //             )
+      //         ),
+      //       ];
+      //     } else {
+      //       updatedMessage[k] = newData[k];
+      //     }
+      //   }
+      //   for (const k of Object.keys(updatedMessage)) {
+      //     if (!Object.keys(newData).includes(k)) {
+      //       delete updatedMessage[k];
+      //     }
+      //   }
+      //   return updatedMessage;
+      // });
+      setMessage(newData);
     };
 
     return () => {

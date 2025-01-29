@@ -15,8 +15,9 @@ type Props = {
 function ServerDialog(props: Props) {
     const [serverName, setServerName] = useState("");
     const [ip, setIp] = useState("");
-    const [port, setPort] = useState(0);
+    const [port, setPort] = useState(22);
     const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
     const [keyfile, setKeyfile] = useState<File | null>(null);
 
     const [server, setServer] = useState<ServerConfig | null>(null);
@@ -28,8 +29,9 @@ function ServerDialog(props: Props) {
             setKeyfile(null); // Reset file input
             setServerName("");
             setIp("");
-            setPort(0);
+            setPort(22);
             setUsername("");
+            setPassword("");
         } else if (props.data) {
             // fetch server config
             const fetchServerConfig = async () => {
@@ -71,15 +73,23 @@ function ServerDialog(props: Props) {
         }
     };
 
-    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: any) => {
         event.preventDefault();
 
-        const formData = new FormData(event.currentTarget);
+        // const formData = new FormData(event.currentTarget);
+        const formData = new FormData();
 
         // Append the file manually if it exists
         if (keyfile) {
             formData.append('keyfile', keyfile);
         }
+        if (password != ""){
+            formData.append('password', password);
+        }
+        formData.append("name", serverName);
+        formData.append("ip", ip);
+        formData.append("port", String(port));
+        formData.append("username", username);
 
         const toastId = toast.loading(`Adding new Server`);
 
@@ -115,8 +125,8 @@ function ServerDialog(props: Props) {
             onClose={handleClose}
             sx={{zIndex: 2000}}
             PaperProps={{
-                component: 'form',
-                onSubmit: handleSubmit
+                    component: 'form',
+                    onSubmit: handleSubmit
             }}
         >
             <DialogTitle>{props.data ? 'Update Existing Server' : 'Add New Server'}</DialogTitle>
@@ -185,6 +195,8 @@ function ServerDialog(props: Props) {
                     type="password"
                     fullWidth
                     variant="standard"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                 />
                 <Button
                     component="label"
@@ -202,8 +214,8 @@ function ServerDialog(props: Props) {
                 </Button>
             </DialogContent>
             <DialogActions>
-                <Button onClick={handleClose}>Cancel</Button>
-                <Button type="submit">{props.data ? 'Update' : 'Add'}</Button>
+                <Button onClick={handleClose} color='inherit'>Cancel</Button>
+                <Button onClick={(e) => handleSubmit(e)} type="submit">{props.data ? 'Update' : 'Add'}</Button>
             </DialogActions>
         </Dialog>
     );

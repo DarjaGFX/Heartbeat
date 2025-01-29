@@ -74,6 +74,8 @@ class ServiceWithBeats(SQLModel):
     """
     Service with beats list
     """
+    service_type: ServiceTypeEnum = Field(nullable=False, index=True)
+    id_service: int | None = Field(default=None, primary_key=True)
     service_name: str | None = Field(nullable=False, index=True)
     beats: Optional[list["BeatPublic"]] = []
 

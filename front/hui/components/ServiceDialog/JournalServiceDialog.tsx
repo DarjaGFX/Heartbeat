@@ -1,5 +1,5 @@
 import { fetchServers } from '@/utils/api/serverApi';
-import { addOrUpdateJournalService } from '@/utils/api/serviceApi'; // Import the API function for adding/updating journal services
+import { addOrUpdateJournalService, getServiceById } from '@/utils/api/serviceApi'; // Import the API function for adding/updating journal services
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, InputLabel, MenuItem, Select, SelectChangeEvent, TextField } from "@mui/material";
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 type Props = {
     open: boolean;
     setOpen: (open: boolean) => void;
-    data?: any;
+    data?: number;
 };
 
 type ServerListRes = {
@@ -31,11 +31,21 @@ const JournalServiceDialog: React.FC<Props> = (props) => {
             loadServers();
             if (props.data) {
                 // Populate form fields if in update mode
-                setName(props.data.service_name ?? "");
-                setDesiredResponse(props.data.desired_response ?? "");
-                setOperator(props.data.operator ?? "in");
-                setHeartbeatInterval(props.data.period_sec ?? 1800);
-                setSelectedServer(props.data.server_id ?? ''); // Set selected server
+                const loadServiceData = async () => {
+                    try {
+                        const response = await getServiceById(props.data);
+                        const serviceData = response.data;
+                        setName(serviceData.service_name ?? "");
+                        setDesiredResponse(serviceData.config.desired_response ?? "");
+                        setOperator(serviceData.config.operator ?? "in");
+                        setHeartbeatInterval(serviceData.config.interval ?? 1800);
+                        setSelectedServer(serviceData.id_server ?? ''); // Set selected server
+                    } catch (error) {
+                        toast.error('Failed to load service data');
+                    }
+                };
+
+                loadServiceData();
             }
         } else {
             // Reset form fields when dialog is closed
@@ -86,7 +96,7 @@ const JournalServiceDialog: React.FC<Props> = (props) => {
         };
 
         try {
-            const response = await addOrUpdateJournalService(serviceData, isUpdate);
+            const response = await addOrUpdateJournalService(serviceData, props.data);
 
             if (response.status === 200 || response.status === 201) {
                 toast.success(`${name} successfully ${isUpdate ? 'updated' : 'added'}.`, {
@@ -155,7 +165,7 @@ const JournalServiceDialog: React.FC<Props> = (props) => {
                     variant="standard"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    disabled={!!props.data} // Disable if in update mode
+                    // disabled={!!props.data} // Disable if in update mode
                 />
                 <TextField
                     required
@@ -192,7 +202,7 @@ const JournalServiceDialog: React.FC<Props> = (props) => {
                     name="hbi"
                     label="HeartBeat Interval (in seconds)"
                     type="number"
-                    InputProps={{ inputProps: { min: 1 } }}
+                    InputProps={{ inputProps: { min: 10 } }}
                     value={heartbeatInterval}
                     onChange={(e) => setHeartbeatInterval(parseInt(e.target.value))}
                     fullWidth
@@ -200,7 +210,7 @@ const JournalServiceDialog: React.FC<Props> = (props) => {
                 />
             </DialogContent>
             <DialogActions>
-                <Button onClick={handleClose}>Cancel</Button>
+                <Button onClick={handleClose} color='inherit'>Cancel</Button>
                 <Button type="submit">{props.data ? 'Update' : 'Add'}</Button>
             </DialogActions>
         </Dialog>

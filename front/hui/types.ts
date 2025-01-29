@@ -40,3 +40,21 @@ export type ServerConfig = {
   username: string,
   keyfile: string
 }
+
+export type ServiceData = {
+    Active: boolean,
+    latency?: number,
+    timestamp: number,
+    server_status: boolean
+} | null
+
+export type ServiceStatus = {
+  id_service: number;
+  service_name: string;
+  service_type: string;
+  beats: ServiceData[];
+}
+
+export type ServiceWSResponse = {
+  [id_server: number]: ServiceStatus[];
+}

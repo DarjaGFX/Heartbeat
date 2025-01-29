@@ -59,9 +59,8 @@ export const fetchServers = async (offset: number = 0, limit: number = 10) => {
 
 export const fetchServer = async (id_server: number, field: string = "") => {
     try {
-        const response = await axios.get(`${apiUrl}/server/${id_server}`, {
-            params: field ? { field } : undefined
-        });
+        const params = field ? { [field]: true } : undefined;
+        const response = await axios.get(`${apiUrl}/server/${id_server}`, { params });
         return response.data;
     } catch (error) {
         throw error;

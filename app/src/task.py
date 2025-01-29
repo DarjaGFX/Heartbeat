@@ -90,13 +90,13 @@ async def update_live_board():
     update status board with latest check results and send to clients using WS connection manager
     """
     from app.src.connection_manager import ServiceConnectionManager
+    session = next(get_db())
     while True:
         cm = ServiceConnectionManager()
-        session = next(get_db())
         try:
             if len(cm.active_connections):
                 services = await crud.service.get_all_services(session=session)
-                message = {}
+                message = { 0: {} }
                 for s in services:
                     s.beats = s.beats[-MAX_CHART_BARS:]
                     swb = ServiceWithBeats.model_validate(s)
@@ -122,14 +122,13 @@ async def update_live_board():
                         else:
                             message[0].update({
                                 s.id_server: [swb]
-                            })    
+                            })
                     else:
                         message.update({
                             0: {
                                 s.id_server: [swb]
                             }
                         })
-
                 await cm.auto_broadcast(message)
         except Exception as e:
             logger.exception(e)

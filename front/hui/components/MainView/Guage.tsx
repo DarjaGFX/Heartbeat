@@ -70,17 +70,17 @@ export default function Guage(props: Props) {
         }
     }, [targetValueAngle, valueAngle]);
     return (
-      <div className="flex flex-col">
+      <div className="flex flex-col m-2">
         <GaugeContainer
-          width={140}
-          height={180}
+          width={200}
+          height={200}
           startAngle={-110}
           endAngle={110}
           value={props.value}
           valueMax={props.valueMax}
           sx={{
             marginTop: -5,
-            scale: 0.4
+            scale: 1
           }}
         >
           <GaugeReferenceArc/>
@@ -88,7 +88,7 @@ export default function Guage(props: Props) {
           <GaugePointer valueAngle={valueAngle} />
           <GaugeValueText fontSize={28} text={text} y={160} />
         </GaugeContainer>
-        <span className="self-center" style={{color: props.theme.palette.text.secondary}}>{props.title}</span>
+        <span className="self-center">{props.title}</span>
       </div>
     );
   }

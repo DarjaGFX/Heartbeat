@@ -1,5 +1,5 @@
 import { fetchServers } from '@/utils/api/serverApi';
-import { addOrUpdateSystemdService } from '@/utils/api/serviceApi';
+import { addOrUpdateSystemdService, getServiceById } from '@/utils/api/serviceApi';
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Select, SelectChangeEvent, TextField } from "@mui/material";
 import InputLabel from '@mui/material/InputLabel';
 import React, { useEffect, useState } from "react";
@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 type Props = {
     open: boolean,
     setOpen: (open: boolean) => void,
-    data?: any
+    data?: number
 };
 
 type ServerListRes = {
@@ -30,9 +30,17 @@ const SystemdServiceDialog: React.FC<Props> = (props) => {
             loadServers();
             if (props.data) {
                 // Populate form fields if in update mode
-                setServiceName(props.data.service_name);
-                setHeartbeatInterval(props.data.period_sec);
-                setSelectedServer(props.data.server_id);
+                const fetchServiceData = async () => {
+                    try {
+                        const response = await getServiceById(props.data);
+                        setServiceName(response.service_name);
+                        setHeartbeatInterval(response.config.interval);
+                        setSelectedServer(response.id_server);
+                    } catch (error) {
+                        toast.error('Failed to load service data');
+                    }
+                };
+                fetchServiceData();
             }
         } else {
             // Reset form fields when dialog is closed
@@ -79,7 +87,7 @@ const SystemdServiceDialog: React.FC<Props> = (props) => {
         };
 
         try {
-            const response = await addOrUpdateSystemdService(serviceData, isUpdate);
+            const response = await addOrUpdateSystemdService(serviceData, props.data);
 
             if (response.status === 200 || response.status === 201) {
                 toast.success(`${serviceName} successfully ${isUpdate ? 'updated' : 'added'}.`, {
@@ -150,7 +158,7 @@ const SystemdServiceDialog: React.FC<Props> = (props) => {
                     variant="standard"
                     value={serviceName}
                     onChange={(e) => setServiceName(e.target.value)}
-                    disabled={!!props.data}
+                    // disabled={!!props.data}
                 />
                 <TextField
                     required
@@ -159,7 +167,7 @@ const SystemdServiceDialog: React.FC<Props> = (props) => {
                     name="hbi"
                     label="HeartBeat Interval (in seconds)"
                     type="number"
-                    InputProps={{ inputProps: { min: 1 } }}
+                    InputProps={{ inputProps: { min: 10 } }}
                     value={heartbeatInterval}
                     onChange={(e) => setHeartbeatInterval(parseInt(e.target.value))}
                     fullWidth
@@ -167,7 +175,7 @@ const SystemdServiceDialog: React.FC<Props> = (props) => {
                 />
             </DialogContent>
             <DialogActions>
-                <Button onClick={handleClose}>Cancel</Button>
+                <Button onClick={handleClose} color='inherit'>Cancel</Button>
                 <Button type="submit">{props.data ? 'Update' : 'Add'}</Button>
             </DialogActions>
         </Dialog>
