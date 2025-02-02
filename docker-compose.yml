@@ -1,0 +1,38 @@
+services:
+  frontend:
+    container_name: hbfront
+    build:
+      context: ./front/hui
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_BACKEND_HOST=http://backend:8000/api
+      - NEXT_PUBLIC_SERVICE_WS="ws://backend:8000/api/service/"
+      - NEXT_PUBLIC_SERVER_WS="ws://backend:8000/api/server/"
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    networks:
+      - heartbeat-network
+
+  backend:
+    container_name: hbback
+    build:
+      context: ./back/
+      dockerfile: Dockerfile
+    environment:
+        - MAX_CHART_BARS=30
+    ports:
+      - "8000:8000"
+    networks:
+      - heartbeat-network
+    volumes:
+      - heartbeat-volume:/app
+
+networks:
+  heartbeat-network:
+    driver: bridge
+
+volumes:
+  heartbeat-volume:

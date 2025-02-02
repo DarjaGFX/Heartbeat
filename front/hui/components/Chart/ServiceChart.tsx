@@ -12,11 +12,15 @@ import {
 import { ServiceData } from '@/types';
 import 'chartjs-adapter-date-fns'; // Import date-fns adapter for Chart.js
 import CloseIcon from '@mui/icons-material/Close';
+import EditIcon from '@mui/icons-material/Edit';
 import { Line } from 'react-chartjs-2';
 import { Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Theme, Typography } from '@mui/material';
 import MuiTooltip from '@mui/material/Tooltip';
 import toast from 'react-hot-toast';
 import { Colors } from 'chart.js';
+import AddSystemdServiceDialog from '@/components/ServiceDialog/SystemdServiceDialog';
+import AddJournalServiceDialog from '@/components/ServiceDialog/JournalServiceDialog';
+import AddOnlineServiceDialog from '@/components/ServiceDialog/OnlineServiceDialog';
 
 
 ChartJS.register(
@@ -31,12 +35,15 @@ ChartJS.register(
 )
 
 interface ServiceChartProps {
+  id_service: number;
   serviceName: string;
+  service_type: string;
   message: ServiceData[];
-  theme: Theme
+  theme?: Theme
 }
 
-const ServiceChart: React.FC<ServiceChartProps> = ({ serviceName, message , theme}) => {
+function ServiceChart(props: ServiceChartProps){
+
     const [chartData, setChartData] = useState<any>({
         labels: [],
         datasets: []
@@ -57,7 +64,7 @@ const ServiceChart: React.FC<ServiceChartProps> = ({ serviceName, message , them
     });
 
     useEffect(() => {
-        let data: (string | number)[] = message.map(data => data.Active ? 'ON' : 'OFF');
+        let data: (string | number)[] = props.message.map(data => data?.Active ? 'ON' : 'OFF');
         let dataset = [
             {
                 label: `Active Status`,
@@ -69,44 +76,46 @@ const ServiceChart: React.FC<ServiceChartProps> = ({ serviceName, message , them
             }
         ];
         
-        if (message.some(x => Object.keys(x).includes("latency"))){
-            data = message.map((item) => (Object.keys(item).includes("latency") ? item.latency ?? 0 : 0))
-            dataset.push({
-                label: "latency",
-                data: data,
-                borderColor: "red",
-                backgroundColor: "red",
+        if (props.message.some(x => Object.keys(x).includes("latency"))){
+            data = props.message.map((item) => (Object.keys(item).includes("latency") ? item.latency ?? 0 : 0))
+            if (!data.every(item => item === 0)) {
+                dataset.push({
+                    label: "latency",
+                    data: data,
+                    borderColor: "red",
+                    backgroundColor: "red",
                 stepped: false,
                 yAxisID: "y2"
-            });
-            setScaleState(
-                {
-                    y: {
-                        type: 'category',
-                        labels: ['ON', 'OFF'],
-                        offset: true,
-                        position: 'left',
-                        stack: 'demo',
-                        stackWeight: 1,
-                        border: {
-                            color: 'rgb(75, 192, 170)',
-                        }
-                    },
-                    y2: {
-                        type: 'linear',
-                        position: 'left',
-                        stack: 'demo',
-                        stackWeight: 2,
-                        border: {
-                        color: "red"
+                });
+                setScaleState(
+                    {
+                        y: {
+                            type: 'category',
+                            labels: ['ON', 'OFF'],
+                            offset: true,
+                            position: 'left',
+                            stack: 'demo',
+                            stackWeight: 1,
+                            border: {
+                                color: 'rgb(75, 192, 170)',
+                            }
+                        },
+                        y2: {
+                            type: 'linear',
+                            position: 'left',
+                            stack: 'demo',
+                            stackWeight: 2,
+                            border: {
+                            color: "red"
+                            }
                         }
                     }
-                }
-            );
+                );
+            }
         }
-        if (message.length > 0){
+        if (props.message.length > 0){
             let data = {
-                labels: message.map(data => {
+                labels: props.message.map(data => {
                     const ts = new Date(data.timestamp * 1000).toISOString().slice(0, 19);
                     const dt = ts.split('T')
                     return `${dt[0].slice(5,).replace('-', '/')} ${dt[1]}`
@@ -116,7 +125,7 @@ const ServiceChart: React.FC<ServiceChartProps> = ({ serviceName, message , them
 
             setChartData(data)
         }
-    }, [serviceName, message]);
+    }, [props.serviceName, props.message]);
 
     //
 
@@ -133,63 +142,118 @@ const ServiceChart: React.FC<ServiceChartProps> = ({ serviceName, message , them
 
     function removeService(){
         // add loading and notify the result
-        const tst = toast.loading(`removing ${serviceName}...`)
+        const tst = toast.loading(`removing ${props.serviceName}...`)
         try{
-            fetch(`${process.env.NEXT_PUBLIC_BACKEND_HOST}/service/`+serviceName,{
+            fetch(`${process.env.NEXT_PUBLIC_BACKEND_HOST}/service/`+props.id_service,{
                 method: 'DELETE',
                 headers: {
                     "accept": "application/json"
                 }
             }).then((response) => {
                 if (response.status == 202){
-                    toast.success(`${serviceName} service successfully removed`, {
+                    toast.success(`${props.serviceName} service successfully removed`, {
                         id: tst
                     });
                     setOpen(false);
-                    // document.getElementById(serviceName)?.remove()
+                    // document.getElementById(props.serviceName)?.remove()
                 }
                 else{
-                    toast.error(`removing ${serviceName} failed!`, {
+                    toast.error(`removing ${props.serviceName} failed!`, {
                         id: tst
                     })
                 }
             });
         }catch{
-            toast.error(`removing ${serviceName} failed!`, {
+            toast.error(`removing ${props.serviceName} failed!`, {
                 id: tst
             })
         }
     }
+    //
+    const [systemdDialogOpen, setSystemdDialogOpen] = useState(false);
+    const [journalDialogOpen, setJournalDialogOpen] = useState(false);
+    const [onlineDialogOpen, setOnlineDialogOpen] = useState(false);
 
-    const mainStyle = "border-t-2 mt-4 m-2 sm:ml-10 sm:mr-16 lg:mr-60 w-auto h-auto"
+    function handleEdit(){
+        switch (props.service_type) {
+            case "SystemdServiceStatus":
+                setSystemdDialogOpen(true);        
+                break;
+            case "Journalctl":
+                setJournalDialogOpen(true);
+                break;
+            case "OnlineService":
+                setOnlineDialogOpen(true);
+                break;
+            default:
+                break;
+        }
+    }
+
   return (
-    <div id={serviceName} className={theme.palette.mode == 'dark' ? "hover:shadow-md  hover:shadow-gray-800 " + mainStyle : "hover:shadow-2xl  hover:shadow-gray-300 " + mainStyle} >
-        <Typography
-            variant="h6"
-            noWrap
-            component="a"
-            sx={{
-                mr: 2,
-                display: { md: 'flow'},
-                fontFamily:  `sans-serif`,
-                fontWeight: 700,
-                letterSpacing: '.3rem',
-                color: `${theme.palette.mode == 'dark' ? "white":"black"}`,
-                textDecoration: 'none',
-            }}
-        >
-            {serviceName}
-        </Typography>
+    <div id={props.serviceName} className="flex flex-col items-center content-center justify-center mt-4 m-2 sm:m-10 w-screen h-auto max-w-4xl max-h-fit" >
+        <div className='flex flex-row w-full justify-around'>
+            <Typography
+                variant="h6"
+                noWrap
+                component="a"
+                sx={{
+                    mr: 2,
+                    display: { md: 'flow'},
+                    fontFamily:  `sans-serif`,
+                    fontWeight: 700,
+                    letterSpacing: '.3rem',
+                    // color: (props) => props.theme?.palette?.mode === 'dark' ? '#fff' : '#000',
+                    textDecoration: 'none',
+                }}
+            >
+                {props.serviceName}
+            </Typography>
+            <div className='flex flex-row'>
+                <IconButton   onClick={handleEdit} aria-label="edit" size="small">
+                    <EditIcon fontSize="inherit" />
+                </IconButton>
+                <IconButton onClick={handleClickOpen} aria-label="delete" size="small">
+                    <CloseIcon fontSize="inherit" />
+                </IconButton>
+                <Dialog
+                    open={open}
+                    onClose={handleClose}
+                    aria-labelledby="alert-dialog-title"
+                    aria-describedby="alert-dialog-description"
+                >
+                    <DialogTitle id="alert-dialog-title">
+                        {"Remove Service"}
+                    </DialogTitle>
+                    <DialogContent>
+                        <DialogContentText id="alert-dialog-description">
+                            Are you sure you want to remove the service {props.serviceName}?
+                        </DialogContentText>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleClose} color="primary">
+                            Cancel
+                        </Button>
+                        <Button onClick={removeService} color="error" autoFocus>
+                            Remove
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+            </div>
+        </div>
         <Line
-            style={{  width: '800px' }}
+            style={{ width: '100%', maxWidth: '800px' }}
             data={chartData}
             options={
                 {
                     scales: scaleState, 
-                    color: `${theme.palette.mode == 'dark' ? "white":"black"}`,
+                    // color: `${props.theme?.palette?.mode === 'dark' ? '#fff' : '#000'}`,
                 }
             }
         />
+        <AddSystemdServiceDialog open={systemdDialogOpen} setOpen={setSystemdDialogOpen} data={props.id_service}/>
+        <AddJournalServiceDialog open={journalDialogOpen} setOpen={setJournalDialogOpen} data={props.id_service}/>
+        <AddOnlineServiceDialog open={onlineDialogOpen} setOpen={setOnlineDialogOpen} data={props.id_service}/>
     </div>
   );
 };

@@ -1,8 +1,0 @@
-fastapi
-loadenv
-redis
-requests
-pytest
-pylint
-uvicorn
-pytest_asyncio

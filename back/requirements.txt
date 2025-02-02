@@ -1,0 +1,13 @@
+fastapi[all]
+loadenv
+redis
+requests
+pytest
+pylint
+uvicorn[standard]
+pytest_asyncio
+paramiko[all]
+alembic
+sqlmodel
+python-dotenv
+python-multipart
