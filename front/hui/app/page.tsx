@@ -144,11 +144,15 @@ function CustomAppTitle() {
 }
 
 
+type ServerListType = {
+  [key: string]: string
+}
+
 export default function DashboardLayoutSlots() {
   
     const [NAVIGATION, setNavigation] = useState<Navigation>();
     
-    const [servers, setServers] = useState({});
+    const [servers, setServers] = useState<ServerListType>({});
     
     // Server List for Drawer
     const server_ws: ServerWSResponse = useServerWS();
