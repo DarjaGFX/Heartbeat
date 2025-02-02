@@ -29,9 +29,9 @@ jobs:
     
     - name: Install apt dependencies
       run: |
-        apt install libkrb5-dev
-        apt install python3.12-dev
-        
+        sudo apt install libkrb5-dev
+        sudo apt install python3.12-dev
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
