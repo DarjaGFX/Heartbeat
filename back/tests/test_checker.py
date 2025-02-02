@@ -1,4 +1,4 @@
-import pytest
+# import pytest
 # from redis import Redis
 
 # from app.src.checker import journalctl, online_service, systemd_service_status
