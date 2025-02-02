@@ -26,15 +26,6 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: "3.12"
-    
-    - name: Install Redis
-      run: |
-        sudo apt-get update
-        sudo apt-get install redis-server -y
-      
-    - name: Start Redis server
-      run: |
-        sudo service redis-server start
       
     - name: Install dependencies
       run: |
@@ -44,4 +35,4 @@ jobs:
           
     - name: Test with pytest
       run: |
-        pytest
+        pytest /back
