@@ -1,12 +1,10 @@
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 WORKDIR /app
-RUN npm install yarn
-RUN rm -rf node_modules
 COPY . .
 RUN yarn install
 RUN yarn run build
 
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
 ENV NODE_ENV production
 COPY --from=builder /app/public ./public
